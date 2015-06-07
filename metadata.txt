@@ -24,9 +24,9 @@ email=maximilian.krambach@gmx.de
 # Tags are comma separated with spaces allowed
 tags=swath, profile
 
-homepage=
+homepage=http://krambach.de/swath-profile/index.html
 tracker=
-repository=
+repository=https://github.com/matakuka/swathProfile
 category=Raster
 icon=icon.png
 # experimental flag
