@@ -191,27 +191,67 @@ class swathProfile:
         self.dlg.inputBaselineBox.clear()
         layers = QgsMapLayerRegistry.instance().mapLayers().values()
         for layer in layers:
-	  if layer.type() == QgsMapLayer.VectorLayer and layer.geometryType() == QGis.Line:
-	    self.dlg.inputBaselineBox.addItem( layer.name(), layer )
-	  if layer.type() == QgsMapLayer.RasterLayer:
-	    self.dlg.inputRasterBox.addItem( layer.name(), layer )
+            if layer.type() == QgsMapLayer.VectorLayer and layer.geometryType() == QGis.Line:
+                self.dlg.inputBaselineBox.addItem( layer.name(), layer )
+            if layer.type() == QgsMapLayer.RasterLayer:
+                self.dlg.inputRasterBox.addItem( layer.name(), layer )
         while chekk != "1":
-	  self.dlg.show()
-          result = self.dlg.exec_()
-          #if okay pressed, check for parameters
-          if result: #if okay is pressed
-            chekk = self.checkempties() #check parameters
-            if chekk=="1":
-                self.operate()
-          else:
-            chekk = "1" #end check loop and stop running
+            self.dlg.show()
+            result = self.dlg.exec_()
+            #if okay pressed, check for parameters
+            if result: #if okay is pressed
+              chekk = self.checkempties() #check parameters
+              if chekk=="1":
+                  self.operate()
+            else:
+              chekk = "1" #end check loop and stop running
             
     def checkempties(self):
-      #check if all input criteria are met
-      #raster baseline outputdir
-      #is baseline line layer with 1 Line?
-      #all in same projection?
-      return "1"
+      #check if all input criteria are met   
+      
+      index = self.dlg.inputBaselineBox.currentIndex()
+      self.baselinelayer= self.dlg.inputBaselineBox.itemData(index)
+      index = self.dlg.inputRasterBox.currentIndex()
+      self.raster= self.dlg.inputRasterBox.itemData(index)
+      self.file_to_store = self.dlg.outputTableBox.text()
+      self.linesshape = self.dlg.outputShapeBox.text()
+      
+      if self.baselinelayer == None:
+          #error
+          return "0"
+      else:
+        if self.baselinelayer.isValid():
+            features = self.baselinelayer.getFeatures()
+            count = 0
+            for f in features:
+                count = count +1
+            if count > 1:
+	        QMessageBox.information(None, "swath profile", "Too many lines in the baselinlayer. Only one feature in the layer is supported for now")
+                return "0"
+            else:
+                if self.raster != None:
+                    #check outputtable 
+                    if self.file_to_store == "":
+                      QMessageBox.information(None, "swath profile", "No output table. Please specifiy an output table.")
+                      return "0"
+                    else:
+                        #check shapefileoutput
+                        if self.linesshape == "":
+                          QMessageBox.information(None, "swath profile", "No output line shape. Please specifiy an shapefile for the output swath lines.")
+                          return "0"
+                        else:
+                            if self.linesshape.endswith(".shp"):
+                              return "1"
+			    else:
+			      self.linesshape = self.linesshape + ".csv"
+			      return "1"
+                else:
+                    QMessageBox.information(None, "swath profile", "No raster to sample found.")
+                    return "0"
+        else:
+            QMessageBox.information(None, "swath profile", "No line layer found.")
+            return "0"
+      
       
     
     def operate(self):
@@ -220,12 +260,6 @@ class swathProfile:
       self.profLen = float(self.dlg.lengthProfilesBox.text())
       self.splitLen = float(self.dlg.distProfilesBox.text())
       self.res = float(self.dlg.resolutionBox.text())
-      index = self.dlg.inputBaselineBox.currentIndex()
-      self.baselinelayer= self.dlg.inputBaselineBox.itemData(index)
-      index = self.dlg.inputRasterBox.currentIndex()
-      self.raster= self.dlg.inputRasterBox.itemData(index)
-      self.file_to_store = self.dlg.outputTableBox.text()
-      self.linesshape = self.dlg.outputShapeBox.text()
       #create lines for profile
       self.createlines()
         
@@ -234,20 +268,19 @@ class swathProfile:
       opened_file= os.open(self.file_to_store,os.O_APPEND|os.O_CREAT|os.O_RDWR)
       lines = self.linelayer.getFeatures()
       for feature in lines:
-	samplelen=0
-	segmentlen = feature.geometry().length()
-	while samplelen <= segmentlen:
+        samplelen=0
+        segmentlen = feature.geometry().length()
+        while samplelen <= segmentlen:
           qpoint = feature.geometry().interpolate(samplelen).asPoint()
-	  ident = self.raster.dataProvider().identify(qpoint, QgsRaster.IdentifyFormatValue)
-	  position= feature['d']
-	  try:
-	    data = str(qpoint.x()) +' '+ str(qpoint.y())+' '+str(position)+' '+str(ident.results()[1])+os.linesep
-	  except KeyError:
-	    data = str(qpoint.x()) +' '+ str(qpoint.y())+' '+str(position)+' None'+os.linesep
-	   
-	  os.write(opened_file, data)
-	  samplelen=samplelen+self.splitLen
-	    
+          ident = self.raster.dataProvider().identify(qpoint, QgsRaster.IdentifyFormatValue)
+          position= feature['d']
+          try:
+            data = str(qpoint.x()) +' '+ str(qpoint.y())+' '+str(position)+' '+str(ident.results()[1])+os.linesep
+          except KeyError:
+            data = str(qpoint.x()) +' '+ str(qpoint.y())+' '+str(position)+' None'+os.linesep
+          os.write(opened_file, data)
+          samplelen=samplelen+self.splitLen
+          
       os.close(opened_file)
       
               
@@ -262,12 +295,11 @@ class swathProfile:
       
       baselines= self.baselinelayer.getFeatures()
       for baseline in baselines:
-	profilepos = 0 + self.res
-	while profilepos <= self.profLen:
-	  #buffer
-	  
-	  bufferfeature= QgsFeature()
-	  baselinebuffer=baseline.geometry().buffer(profilepos,20)
+        profilepos = 0 + self.res
+        while profilepos <= (self.profLen/2):
+          #buffer
+          bufferfeature= QgsFeature()
+          baselinebuffer=baseline.geometry().buffer(profilepos,20)
           bufferfeature.setGeometry(baselinebuffer)
           
           #calculate cutline 1
@@ -283,9 +315,9 @@ class swathProfile:
           newpyo = vertex.y()- deltay
           cutline1= QgsFeature()
           cutline1.setGeometry(QgsGeometry.fromPolyline([QgsPoint(newpx,newpy),QgsPoint(vertex.x(),vertex.y()),QgsPoint(newpxo,newpyo)]))
-	  
-	  #calculate cutline 2
-	  vertexminusone= baseline.geometry().interpolate((baseline.geometry().length())- 0.001).asPoint()
+          
+          #calculate cutline 2
+          vertexminusone= baseline.geometry().interpolate((baseline.geometry().length())- 0.001).asPoint()
           vertex = baseline.geometry().interpolate(baseline.geometry().length()).asPoint()
           azimuth = (vertex.azimuth(vertexminusone)*math.pi/180) - math.pi
           deltax= math.cos(math.pi - azimuth)* (2*self.profLen)
@@ -296,9 +328,9 @@ class swathProfile:
           newpyo = vertex.y()- deltay
           cutline2= QgsFeature()
           cutline2.setGeometry(QgsGeometry.fromPolyline([QgsPoint(newpx,newpy),QgsPoint(vertex.x(),vertex.y()),QgsPoint(newpxo,newpyo)]))
-
-	  #cut at cutlines
-	  bufferfeature.geometry().reshapeGeometry(cutline2.geometry().asPolyline())
+          
+          #cut at cutlines
+          bufferfeature.geometry().reshapeGeometry(cutline2.geometry().asPolyline())
           bufferfeature.geometry().reshapeGeometry(cutline1.geometry().asPolyline())
           
           vertexcount= 0
@@ -307,7 +339,7 @@ class swathProfile:
               vertexcount = vertexcount+1    
           i = 1
           while i <= vertexcount:
-	    ver= bufferfeature.geometry().adjacentVertices(i-1)[1]
+            ver= bufferfeature.geometry().adjacentVertices(i-1)[1]
             vertd= bufferfeature.geometry().vertexAt(ver)
             vert = bufferfeature.geometry().vertexAt(i-1)
             line=QgsFeature()
@@ -315,9 +347,9 @@ class swathProfile:
             
             k= line.geometry().asPolyline()
             if k[0].azimuth(k[1])> 0:
-	      profileps = 0 - profilepos
-	    else:
-	      profileps = profilepos
+              profileps = 0 - profilepos
+            else:
+              profileps = profilepos
             line.setAttributes([profileps])
             i=i+1
             if not line.geometry().intersects(baseline.geometry()):

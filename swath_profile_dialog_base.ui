@@ -69,7 +69,7 @@
     <item row="6" column="0">
      <widget class="QLabel" name="label_4">
       <property name="text">
-       <string>length of profiles</string>
+       <string>length of profile</string>
       </property>
      </widget>
     </item>
