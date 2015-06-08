@@ -46,12 +46,12 @@ class swathProfileDialog(QtGui.QDialog, FORM_CLASS):
         
      
     def output_table(self):
-       self.tablename= str(QtGui.QFileDialog.getSaveFileName(self, "Save File","",""))
+       self.tablename= unicode(QtGui.QFileDialog.getSaveFileName(self, "Save File","",""))
        self.outputTableBox.clear()
        self.outputTableBox.setText(self.tablename)
        
     def output_shape(self):
-       self.dirname = str(QtGui.QFileDialog.getSaveFileName(self, "Output Shape","","*.shp"))
+       self.dirname = unicode(QtGui.QFileDialog.getSaveFileName(self, "Output Shape","","*.shp"))
        self.outputShapeBox.clear()
        self.outputShapeBox.setText(self.dirname)
        
