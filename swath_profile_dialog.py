@@ -46,7 +46,7 @@ class swathProfileDialog(QtGui.QDialog, FORM_CLASS):
         
      
     def output_table(self):
-       self.tablename= unicode(QtGui.QFileDialog.getSaveFileName(self, "Save File","",""))
+       self.tablename= unicode(QtGui.QFileDialog.getSaveFileName(self, "Save File","","*.csv"))
        self.outputTableBox.clear()
        self.outputTableBox.setText(self.tablename)
        

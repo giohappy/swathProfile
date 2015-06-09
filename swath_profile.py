@@ -21,7 +21,7 @@
  ***************************************************************************/
 """
 from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QFileInfo, QVariant
-from PyQt4.QtGui import QAction, QIcon
+from PyQt4.QtGui import QAction, QIcon, QMessageBox
 from qgis.analysis import QgsGeometryAnalyzer
 from qgis.core import * 
 # Initialize Qt resources from file resources.py
@@ -30,7 +30,7 @@ import resources_rc
 from swath_profile_dialog import swathProfileDialog
 import os.path
 import os, math
-
+import numpy
 
 
 class swathProfile:
@@ -218,6 +218,7 @@ class swathProfile:
       
       if self.baselinelayer == None:
           #error
+          QMessageBox.information(None, "swath profile", "No baseline layer detected")
           return "0"
       else:
         if self.baselinelayer.isValid():
@@ -226,7 +227,7 @@ class swathProfile:
             for f in features:
                 count = count +1
             if count > 1:
-	        QMessageBox.information(None, "swath profile", "Too many lines in the baselinlayer. Only one feature in the layer is supported for now")
+                QMessageBox.information(None, "swath profile", "Too many lines in the baselinlayer. Only one feature in the layer is supported for now")
                 return "0"
             else:
                 if self.raster != None:
@@ -242,9 +243,9 @@ class swathProfile:
                         else:
                             if self.linesshape.endswith(".shp"):
                               return "1"
-			    else:
-			      self.linesshape = self.linesshape + ".csv"
-			      return "1"
+                            else:
+                                self.linesshape = self.linesshape + ".shp"
+                                return "1"
                 else:
                     QMessageBox.information(None, "swath profile", "No raster to sample found.")
                     return "0"
@@ -256,7 +257,7 @@ class swathProfile:
     
     def operate(self):
       #run
-      #define vartiables
+      #define variables
       self.profLen = float(self.dlg.lengthProfilesBox.text())
       self.splitLen = float(self.dlg.distProfilesBox.text())
       self.res = float(self.dlg.resolutionBox.text())
@@ -265,23 +266,64 @@ class swathProfile:
         
       #query along lines
       
-      opened_file= os.open(self.file_to_store,os.O_APPEND|os.O_CREAT|os.O_RDWR)
-      lines = self.linelayer.getFeatures()
+      self.opened_file= os.open(self.file_to_store,os.O_APPEND|os.O_CREAT|os.O_RDWR)
+
+      data = "dist, median, mean, min, max, sd, quart25,quart75\n"
+      os.write(self.opened_file, data)
+
+
+      samplelen=0
+      baselines = self.baselinelayer.getFeatures()
+      for baseline in baselines:
+        segmentlen = baseline.geometry().length()
+        datalist =[]         
+        while samplelen <= segmentlen:
+          qpoint = baseline.geometry().interpolate(samplelen).asPoint()
+          ident = self.raster.dataProvider().identify(qpoint, QgsRaster.IdentifyFormatValue)
+          position= 0
+          
+          try:
+            datalist.append(ident.results()[1]) 
+          except KeyError:
+            pass
+          samplelen=samplelen+self.splitLen
+        nmean = str(numpy.mean(datalist))
+        nmedian = str(numpy.median(datalist))
+        nmin = str(numpy.min(datalist))
+        nmax = str(numpy.max(datalist))
+        nsd = str(numpy.std(datalist))
+        nq25 = str(numpy.percentile(datalist,25))
+        nq75 = str(numpy.percentile(datalist,75))
+        data = "0,"+ nmedian+ "," + nmean+ ","+nmin + ","+ nmax+ ","+nsd+ ","+  nq25+ ","+ nq75+"\n"
+        os.write(self.opened_file, data)
+          
+      lines = self.lineshapelayer.getFeatures()
       for feature in lines:
         samplelen=0
+        datalist =[]        
         segmentlen = feature.geometry().length()
         while samplelen <= segmentlen:
           qpoint = feature.geometry().interpolate(samplelen).asPoint()
           ident = self.raster.dataProvider().identify(qpoint, QgsRaster.IdentifyFormatValue)
           position= feature['d']
           try:
-            data = str(qpoint.x()) +' '+ str(qpoint.y())+' '+str(position)+' '+str(ident.results()[1])+os.linesep
+            datalist.append(ident.results()[1])
           except KeyError:
-            data = str(qpoint.x()) +' '+ str(qpoint.y())+' '+str(position)+' None'+os.linesep
-          os.write(opened_file, data)
-          samplelen=samplelen+self.splitLen
-          
-      os.close(opened_file)
+            pass
+          finally:
+            samplelen = samplelen+self.splitLen
+
+        nmedian = str(numpy.median(datalist))
+        nmean = str(numpy.mean(datalist))
+        nmin = str(numpy.min(datalist))
+        nmax = str(numpy.max(datalist))
+        nsd = str(numpy.std(datalist))
+        nq25 = str(numpy.percentile(datalist,25))
+        nq75 = str(numpy.percentile(datalist,75))
+        data = str(position)+","+nmedian+","+ nmean+ ","+ nmin+ ","+ nmax+ ","+nsd+ "," + nq25+ ","+nq75+"\n"
+        os.write(self.opened_file, data)
+        
+      os.close(self.opened_file)
       
               
     def createlines(self):
@@ -307,8 +349,8 @@ class swathProfile:
           vertexplusone= baseline.geometry().interpolate(0.001).asPoint()
           vertex = baseline.geometry().interpolate(0).asPoint()
           azimuth = (vertex.azimuth(vertexplusone)*math.pi/180) - math.pi
-          deltax= math.cos(math.pi - azimuth)* (2* self.profLen)
-          deltay= math.sin(azimuth)* (2* self.profLen)
+          deltax= math.cos(math.pi - azimuth)* (self.profLen/2 + self.res)
+          deltay= math.sin(azimuth)* (self.profLen/21123 + self.res)
           newpx = vertex.x()+ deltax
           newpy = vertex.y()+ deltay
           newpxo = vertex.x()- deltax
@@ -320,8 +362,8 @@ class swathProfile:
           vertexminusone= baseline.geometry().interpolate((baseline.geometry().length())- 0.001).asPoint()
           vertex = baseline.geometry().interpolate(baseline.geometry().length()).asPoint()
           azimuth = (vertex.azimuth(vertexminusone)*math.pi/180) - math.pi
-          deltax= math.cos(math.pi - azimuth)* (2*self.profLen)
-          deltay= math.sin(azimuth)* (2*self.profLen)
+          deltax= math.cos(math.pi - azimuth)* (self.profLen/2 + self.res)
+          deltay= math.sin(azimuth)* (self.profLen/2 + self.res)
           newpx = vertex.x()+ deltax
           newpy = vertex.y()+ deltay
           newpxo = vertex.x()- deltax
@@ -358,6 +400,6 @@ class swathProfile:
           profilepos = profilepos + self.res
           self.linelayer.updateExtents()
         QgsGeometryAnalyzer().dissolve(self.linelayer, self.linesshape, onlySelectedFeatures=False, uniqueIdField=0,p=None)
-        lineshapelayer = QgsVectorLayer(self.linesshape, "distance lines", "ogr")
-        QgsMapLayerRegistry.instance().addMapLayer(lineshapelayer)
-        lineshapelayer.updateExtents()
+        self.lineshapelayer = QgsVectorLayer(self.linesshape, "distance lines", "ogr")
+        QgsMapLayerRegistry.instance().addMapLayer(self.lineshapelayer)
+        self.lineshapelayer.updateExtents()
