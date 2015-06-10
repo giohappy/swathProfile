@@ -271,7 +271,7 @@ class swathProfile:
       data = "dist, median, mean, min, max, sd, quart25,quart75\n"
       os.write(self.opened_file, data)
 
-
+      dictdatalist={}
       samplelen=0
       baselines = self.baselinelayer.getFeatures()
       for baseline in baselines:
@@ -283,7 +283,10 @@ class swathProfile:
           position= 0
           
           try:
-            datalist.append(ident.results()[1]) 
+	    if ident.results()[1] != None:
+	      datalist.append(ident.results()[1]) 
+	    else:
+	      pass
           except KeyError:
             pass
           samplelen=samplelen+self.splitLen
@@ -295,8 +298,8 @@ class swathProfile:
         nq25 = str(numpy.percentile(datalist,25))
         nq75 = str(numpy.percentile(datalist,75))
         data = "0,"+ nmedian+ "," + nmean+ ","+nmin + ","+ nmax+ ","+nsd+ ","+  nq25+ ","+ nq75+"\n"
-        os.write(self.opened_file, data)
-          
+        dictdatalist[0]=data
+        
       lines = self.lineshapelayer.getFeatures()
       for feature in lines:
         samplelen=0
@@ -307,7 +310,10 @@ class swathProfile:
           ident = self.raster.dataProvider().identify(qpoint, QgsRaster.IdentifyFormatValue)
           position= feature['d']
           try:
-            datalist.append(ident.results()[1])
+	    if ident.results()[1] != None:
+	      datalist.append(ident.results()[1]) 
+            else:
+	      pass
           except KeyError:
             pass
           finally:
@@ -321,8 +327,13 @@ class swathProfile:
         nq25 = str(numpy.percentile(datalist,25))
         nq75 = str(numpy.percentile(datalist,75))
         data = str(position)+","+nmedian+","+ nmean+ ","+ nmin+ ","+ nmax+ ","+nsd+ "," + nq25+ ","+nq75+"\n"
-        os.write(self.opened_file, data)
+        dictdatalist[position]=data
         
+      #write data sorted
+      k = sorted(dictdatalist.items())
+      for item in k:
+	
+        os.write(self.opened_file,item[1])
       os.close(self.opened_file)
       
               
@@ -350,7 +361,7 @@ class swathProfile:
           vertex = baseline.geometry().interpolate(0).asPoint()
           azimuth = (vertex.azimuth(vertexplusone)*math.pi/180) - math.pi
           deltax= math.cos(math.pi - azimuth)* (self.profLen/2 + self.res)
-          deltay= math.sin(azimuth)* (self.profLen/21123 + self.res)
+          deltay= math.sin(azimuth)* (self.profLen/2 + self.res)
           newpx = vertex.x()+ deltax
           newpy = vertex.y()+ deltay
           newpxo = vertex.x()- deltax
