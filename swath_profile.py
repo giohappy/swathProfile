@@ -207,7 +207,7 @@ class swathProfile:
               chekk = "1" #end check loop and stop running
             
     def checkempties(self):
-      #check if all input criteria are met   
+      #check if all input criteria are met, TODO
       
       index = self.dlg.inputBaselineBox.currentIndex()
       self.baselinelayer= self.dlg.inputBaselineBox.itemData(index)
@@ -256,56 +256,39 @@ class swathProfile:
       
     
     def operate(self):
-      #run
       #define variables
       self.profLen = float(self.dlg.lengthProfilesBox.text())
       self.splitLen = float(self.dlg.distProfilesBox.text())
       self.res = float(self.dlg.resolutionBox.text())
       #create lines for profile
       bufferLines().createFlatBuffer(self.baselinelayer,self.profLen,self.res,self.linesshape)
-      self.lineshapelayer = QgsVectorLayer(self.linesshape, "Buffer lines", "ogr")
+      
+      self.lineshapelayer = QgsVectorLayer(self.linesshape, "Lineshapelayer", "ogr")
       QgsMapLayerRegistry.instance().addMapLayer(self.lineshapelayer)
 
-      #query along lines
       self.opened_file= os.open(self.file_to_store,os.O_APPEND|os.O_CREAT|os.O_RDWR)
       #write header
       data = "dist, median, mean, min, max, sd, quart25,quart75\n"
       os.write(self.opened_file, data)
-      
-      #query the baseline
-      baselines = self.baselinelayer.getFeatures()
-      for baseline in baselines:
+      for f in self.lineshapelayer.getFeatures():
           samplelen=0
-          segmentlen = baseline.geometry().length()
-          datalist =[]         
+          self.datalist =[]        
+          segmentlen = f.geometry().length()
           while samplelen <= segmentlen:
-              qpoint = baseline.geometry().interpolate(samplelen).asPoint()
+              qpoint = f.geometry().interpolate(samplelen).asPoint()
               ident = self.raster.dataProvider().identify(qpoint, QgsRaster.IdentifyFormatValue)
-              self.position= 0
+              self.position= f['d']
               try:
-                  datalist.append(ident.results()[1]) 
+                  if ident.results()[1] == None:
+		      pass
+		  else:
+                      self.datalist.append(ident.results()[1])
               except KeyError:
                   pass
-              samplelen=samplelen+self.splitLen
-              self.aggregate(datalist)
-
-          #query buffers
-          lines = self.lineshapelayer.getFeatures()
-          for feature in lines:
-              samplelen=0
-              datalist =[]        
-              segmentlen = feature.geometry().length()
-              while samplelen <= segmentlen:
-                  qpoint = feature.geometry().interpolate(samplelen).asPoint()
-                  ident = self.raster.dataProvider().identify(qpoint, QgsRaster.IdentifyFormatValue)
-                  self.position= feature['d']
-                  try:
-                      datalist.append(ident.results()[1])
-                  except KeyError:
-                      pass
-                  samplelen = samplelen+self.splitLen
-                  self.aggregate(datalist)
-          os.close(self.opened_file)
+              samplelen = samplelen+self.splitLen
+              
+          self.aggregate(self.datalist)
+      os.close(self.opened_file)
 
     def aggregate(self,datalist):
         nmedian = str(numpy.median(datalist))
@@ -317,4 +300,7 @@ class swathProfile:
         nq75 = str(numpy.percentile(datalist,75))
         data = str(self.position)+","+nmedian+","+ nmean+ ","+ nmin+ ","+ nmax+ ","+nsd+ "," + nq25+ ","+nq75+"\n"
         os.write(self.opened_file, data)
-
+#todo:
+#reprojection before querying
+#overwrite file_to_store instead of appending
+#buffer oversampling problem
