@@ -93,7 +93,7 @@ class bufferLines():
                             else:#negative buffer
                                if diffazimuth%360>=180:
                                    azimuth = self.meanAzimuth(az2,az3)
-                                   dist =  self.CalculateSharpDistance(az2,az3,bufcurrent)
+                                   dist =  - self.CalculateSharpDistance(az2,az3,bufcurrent)
                                    self.pointAdd(vertex,azimuth,dist)
                                else: 
                                    azimutha = az2
@@ -145,14 +145,18 @@ class bufferLines():
             for point in constructline.geometry().asPolyline():
                 if pointid == 0:#first point, definitely "outside"
                     outside = True
-                    #we won't need this point, as it is on bufferline
                 else:
                     if oldbaseline == None:#assuming that the baseline is valid
                         endlist.append(point)
-                    else:#oldbaseline exists. TODO check for intersections 
+                    else:#oldbaseline exists 
                         obg = oldbaseline.geometry()
                         vertexminusone = constructline.geometry().vertexAt(pointid - 1)
 	                segment = QgsGeometry().fromPolyline([vertexminusone,point])
+                        if segment.intersects(obg):
+                           if segment.intersection(obg).asPoint()!= QgsPoint(0,0):
+                               pass #for now
+                        else:
+                           pass
                         for error in errorlist:
                              #ugly hack: add a tiny buffer to error, so line "sees" it
                              buf = QgsGeometry().fromPoint(error).buffer(0.0000001,3)
@@ -196,8 +200,10 @@ class bufferLines():
         self.lineprovider= self.linelayer.dataProvider()
         self.lineprovider.addAttributes([QgsField('d', QVariant.Double)])
         self.linelayer.updateFields()
-        bufcurr = -buflength
+        bufcurr = 0 + step
+        self.createLine(0,baseline,step)        
         while bufcurr <= buflength:
+            self.createLine(-bufcurr,baseline,step)
             self.createLine(bufcurr,baseline,step)
             bufcurr = bufcurr + step
         QgsVectorFileWriter.writeAsVectorFormat(self.linelayer, filename, "utf-8", baseline.crs(), "ESRI Shapefile")
@@ -217,9 +223,22 @@ class bufferLines():
      
     def CalculateSharpDistance(self,az2,az3,bufcurrent):
       
-       half= self.meanAzimuth(az2,az3)
-       diff = (self.diffAzimuth(az3,half))
-       if diff >-45:
-           return 1/ math.cos(math.radians(diff))*bufcurrent
-       else:
-           return 1/ math.sin(math.radians(-diff))*bufcurrent
+           half= self.meanAzimuth(az2,az3)
+           diff = self.diffAzimuth(az2,half)
+           if diff <(-90):
+               return (1/ math.cos(math.radians(diff))*bufcurrent)
+           else:
+               if diff == (-90):
+                   return bufcurrent
+               else:
+                   if diff <= 0:
+                       return -(1/ math.cos(math.radians(diff))*bufcurrent)
+                   else:
+                       if diff <90:
+                           return (1/ math.cos(math.radians(diff))*bufcurrent)
+                       else:
+                            if diff == 90:
+                                return bufcurrent
+                            else:
+                                if diff >90:
+                                    return -(1/ math.cos(math.radians(diff))*bufcurrent) 
