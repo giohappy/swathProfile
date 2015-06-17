@@ -104,24 +104,18 @@ class bufferLines():
                                    azimutha = az3 
                                    self.pointAdd(vertex,azimutha,bufcurrent)
                 pid = baseline.geometry().adjacentVertices(pid)[1]
-            
-            
-            #construction site: for checking if we intersect ourselves or are inside the buffer
-            
             constructline = QgsFeature()
             templist = []
             a = baseline.geometry().asPolyline()[0]
             templist.append(a)
             for item in self.list:
 	        templist.append(item)
-            
             constructline.setGeometry(QgsGeometry().fromPolyline(templist))
             errorlist = []
             errors = constructline.geometry().validateGeometry()
             for error in errors:
                 if error.hasWhere():
                   errorlist.append(error.where())
-                  
             #get the feature one inside
             oldbaseline = None
             if bufcurrent == 0:
@@ -134,13 +128,17 @@ class bufferLines():
             ob = self.linelayer.getFeatures(QgsFeatureRequest().setFilterExpression(expr))
             for o in ob: 
                 oldbaseline = o
+                
 
-            #go through list, check for intersections, creatre features
-            
+            #go through list, check for intersections, create features
             linetoaddgeom = []
             pointid = 0
             outside = True
             endlist = []
+            oo = False
+            so = False
+            oin = False
+            sin = False
             
             for point in constructline.geometry().asPolyline():
                 if pointid == 0:#first point, definitely "outside"
@@ -150,44 +148,198 @@ class bufferLines():
                         endlist.append(point)
                     else:#oldbaseline exists 
                         obg = oldbaseline.geometry()
+                        #vertexspecialline = obg.asMultiPolyline()[0]
+                        #vertexspecial = vertexspecialline[0]
                         vertexminusone = constructline.geometry().vertexAt(pointid - 1)
 	                segment = QgsGeometry().fromPolyline([vertexminusone,point])
-                        if segment.intersects(obg):
-                           if segment.intersection(obg).asPoint()!= QgsPoint(0,0):
-                               pass #for now
-                        else:
-                           pass
-                        for error in errorlist:
-                             #ugly hack: add a tiny buffer to error, so line "sees" it
-                             buf = QgsGeometry().fromPoint(error).buffer(0.0000001,3)
-                             if segment.intersects(buf) == True:
-                                if outside == True:
+	                #oo = self.checkOo(segment,obg)
+	                so = self.checkSo(segment,errorlist)
+	                
+	                #speciul treatment of point two
+	                #if pointid == 1:
+                            #segmentspecial = QgsGeometry().fromPolyline([vertexspecial,point])
+                            #oo = self.checkOo(segmentspecial,obg)
+	                
+	                if outside == True:
+                            if oo == False:
+                                if so == False:
+                                        endlist.append(point)
+                                else: #so = True, oo = false
                                     outside = False
-                                    endlist.append(error)
-                                    if len(endlist) > 1:
-                                        
-                                        linetoaddgeom.append((endlist))
+                                    sin = True
+                                    d = so
+                                    endlist.append(d)
+                                    if len(endlist)>1:
+                                        linetoaddgeom.append(endlist)
                                     del endlist
                                     endlist = []
-                                else:
-                                    outside = True
-                                    endlist.append(error)
-                             else:
-                                pass
-                        if outside == True:
-                            endlist.append(point)
-                        else:
-                            pass    
-                
+                            else:#oo == True
+                              
+                                if so == False:
+                                    oin = True
+                                    outside = False
+                                    d = oo
+                                    endlist.append(d)
+                                    if len(endlist)>1:
+                                        linetoaddgeom.append(endlist)
+                                    del endlist
+                                    endlist = []
+	                        else: #outside. Both cross. Take the first crossing and switch both states
+                                    sin = True
+                                    oin = True
+                                    distA = QgsGeometry().fromPoint(vertexminusone).distance(QgsGeometry().fromPoint(oo))
+                                    distB = QgsGeometry().fromPoint(vertexminusone).distance(QgsGeometry().fromPoint(so))
+                                    if distA > distB:
+                                        d = so
+                                        endlist.append(d)
+                                    else:
+                                        d = oo
+                                        endlist.append(d)
+                                    if len(endlist) >1:
+                                        linetoaddgeom.append(endlist)
+                                    del endlist
+                                    endlist = []
+                        else:#outside false
+	                    if oo == False:
+                                if so == False:#oo false so false DONE
+                                    pass
+                                else:#oo false so true DONE
+                                    if oin == True:
+                                        if sin == True:
+                                            sin = False
+                                            pass
+                                        else:# oin = False
+                                            sin = True
+                                            pass
+                                    else: #oin = False
+                                        if sin == True:
+                                             sin = False
+                                             d = so
+                                             endlist.append(d)
+                                             endlist.append(point)
+                                             outside = True
+                                        else:
+                                             sin = True
+                                             pass
+                            else:#oo = True
+                                if so == False: #only oo #DONE
+                                    if sin == True:
+                                        if oin == True:
+                                            oin = False
+                                            pass
+                                        else:#oin = False
+                                           oin = True
+                                           pass
+                                    else: #if sin ==False:
+                                        if oin == True:
+                                          outside = True
+                                          oin = False
+                                          d= oo
+                                          endlist.append(d)
+                                          endlist.append(point)
+                                        else:#oin == False
+                                          oin = True
+                                          d= oo
+                                          endlist.append(d)
+                                          if len(endlist)>1:
+                                              linetoaddgeom.append((endlist))
+                                          del endlist
+                                          endlist = []
+                                else:#oo and so, outside false
+                                    distA = QgsGeometry().fromPoint(vertexminusone).distance(QgsGeometry().fromPoint(oo))
+                                    distB = QgsGeometry().fromPoint(vertexminusone).distance(QgsGeometry().fromPoint(so)) 
+                                    if distA > distB: #treat distB first. Here so changes
+                                        if sin == True:
+                                            sin = False
+                                            #sin comes out.
+                                            if oin == False:
+                                                oin = True
+                                                d = so
+                                                endlist.append(d)
+                                                d = oo
+                                                endlist.append(d)
+                                                if len(endlist) >1:
+                                                  linetoaddgeom.append(endlist)
+                                                del endlist
+                                                endlist = []
+                                            else:#sin coms out, then oin comes out
+                                              oin = False
+                                              d = oo
+                                              endlist.append(d)
+                                        else:
+                                            sin = True
+                                            if oin == True:
+                                               oin = False
+                                               d = so
+                                               endlist.append(d)
+                                               if len(endlist) >1:
+                                                   linetoaddgeom.append(endlist)
+                                               del endlist
+                                               endlist = []
+                                               d = oo
+                                               endlist.append(d)
+                                               endlist.append(point)
+                                               outside = True
+                                            else:
+                                                oin = True
+                                                d = so
+                                                endlist.append(d)
+                                                if len(endlist) >1:
+                                                    linetoaddgeom.append(endlist)
+                                                del endlist
+                                                endlist = []
+                                    else:
+                                        if oin == True:
+                                            oin = False
+                                            if sin == False:
+                                                sin = True
+                                                d = oo
+                                                endlist.append(d)
+                                                d = so
+                                                endlist.append(d)
+                                                if len(endlist) >1:
+                                                  linetoaddgeom.append(endlist)
+                                                del endlist
+                                                endlist = []
+                                            else:
+                                              sin = False
+                                              d = so
+                                              endlist.append(d)
+                                        else:
+                                            oin = True
+                                            if sin == True:
+                                               sin = False
+                                               d = oo
+                                               endlist.append(d)
+                                               if len(endlist) >1:
+                                                   linetoaddgeom.append(endlist)
+                                               del endlist
+                                               endlist = []
+                                               d = so
+                                               endlist.append(d)
+                                               endlist.append(point)
+                                               outside = True
+                                            else:
+                                                sin = True
+                                                d = oo
+                                                endlist.append(d)
+                                                if len(endlist) >1:
+                                                    linetoaddgeom.append(endlist)
+                                                del endlist
+                                                endlist = []
+                        
                 pointid = pointid +1 
+                
             if len(endlist)>1:
                 linetoaddgeom.append((endlist))
+                
             linetoadd = QgsFeature()
             linetoadd.setAttributes([bufcurrent])
             linetoadd.setGeometry(QgsGeometry().fromMultiPolyline(linetoaddgeom))
             self.lineprovider.addFeatures([linetoadd])
             #clean up, just to make sure no clutter remains. Probably unneccesary
             del self.list
+            del linetoaddgeom
             del endlist
             del templist
             del errorlist
@@ -242,3 +394,20 @@ class bufferLines():
                             else:
                                 if diff >90:
                                     return -(1/ math.cos(math.radians(diff))*bufcurrent) 
+    def checkOo(self,segment,obg):
+        if segment.intersects(obg):
+          if segment.intersection(obg).asPoint()!= QgsPoint(0,0):
+              return segment.intersection(obg).asPoint()
+          else:
+            return False
+        else:
+          return False
+      
+    def checkSo(self,segment,errorlist):
+     k = False
+     for error in errorlist:
+       #ugly hack: add a tiny buffer to error, so line "sees" it
+       buf = QgsGeometry().fromPoint(error).buffer(0.00001,5)
+       if segment.intersects(buf) == True:
+          k = error
+     return k
