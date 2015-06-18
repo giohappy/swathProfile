@@ -104,19 +104,25 @@ class bufferLines():
                                    azimutha = az3 
                                    self.pointAdd(vertex,azimutha,bufcurrent)
                 pid = baseline.geometry().adjacentVertices(pid)[1]
+            
+            
+            #construction site: for checking if we intersect ourselves or are inside the buffer
+            
             constructline = QgsFeature()
             templist = []
             a = baseline.geometry().asPolyline()[0]
             templist.append(a)
             for item in self.list:
 	        templist.append(item)
+            
             constructline.setGeometry(QgsGeometry().fromPolyline(templist))
             errorlist = []
             errors = constructline.geometry().validateGeometry()
             for error in errors:
                 if error.hasWhere():
                   errorlist.append(error.where())
-            #get the feature one closer to baseline
+                  
+            #get the feature one inside
             oldbaseline = None
             if bufcurrent == 0:
               expr = ''
@@ -128,32 +134,92 @@ class bufferLines():
             ob = self.linelayer.getFeatures(QgsFeatureRequest().setFilterExpression(expr))
             for o in ob: 
                 oldbaseline = o
-            #go through list, check for intersections, create features
+
+            #go through list, check for intersections, creatre features
+            
             self.linetoaddgeom = []
+            pointid = 0
+            oldinside = False
+            if abs(bufcurrent) == (0 + step):
+                oldinside = False
+            selfinside = False
             self.endlist = []
             
-            #state of starting point: outside self
-            oin = False
-            sin = False
-            
-            pointid = 0
             for point in constructline.geometry().asPolyline():
-                if pointid == 0:
+                if pointid == 0:#first point, definitely "outside"
                     pass
                 else:
-                    if oldbaseline == None:
-                        self.endlist.append(point)#baseline is always valid?
+                    if pointid == 1:
+                        if oldbaseline == None:
+                            self.endlist.append(point)
+                        else:
+                            obg = oldbaseline.geometry()
+                            vertexminusone = constructline.geometry().vertexAt(pointid - 1)
+                            segment = QgsGeometry().fromPolyline([vertexminusone,point])
+                            d = self.checkBoth(segment,errorlist,obg)
+                            while d > 0:
+                                if d == 1:
+                                    k = self.checkOo(segment,obg)#HERE ERROR
+                                    if oldinside == True:
+                                       oldinside = False
+                                    else:
+                                        oldinside = True
+                                else:
+                                    k = self.checkSo(segment,errorlist)
+                                    if selfinside == True:
+                                        selfinside = False
+                                    else:
+                                        selfinside = True
+                                segment = QgsGeometry().fromPolyline([k,point])
+                                d = self.checkBoth(segment,errorlist,obg)
+                            
+                            if selfinside == False:
+                                if oldinside == False:
+                                    self.endlist.append(point)
+                                                      
                     else:
-                        obg = oldbaseline.geometry()
-                        vertexminusone = constructline.geometry().vertexAt(pointid - 1) 
-                        segbegin = vertexminusone
-                        segment = QgsGeometry().fromPolyline([segbegin,point])
-                        if self.checkCrossing(segment,errorlist,obg) == True: #while!
-                            oin, sin, segbegin = self.doCrossing(segment,errorlist,obg,oin,sin,point)
-                            segment = QgsGeometry().fromPolyline([segbegin.asPoint(),point])
-                        if oin == False:
-                            if sin == False:
-                                self.endlist.append(point)
+                        if oldbaseline == None:#assuming that the baseline is valid
+                            self.endlist.append(point)
+                        else:#oldbaseline exists. 
+                            obg = oldbaseline.geometry()
+                            vertexminusone = constructline.geometry().vertexAt(pointid - 1)
+	                    segment = QgsGeometry().fromPolyline([vertexminusone,point])
+                            d = self.checkBoth(segment,errorlist,obg)
+                            while d > 0:
+                                if d == 1:
+                                    k = self.checkOo(segment,obg)
+                                    if oldinside == True:
+                                        oldinside = False
+                                        if selfinside == True:
+                                            pass
+                                        else: 
+                                            self.endlist.append(k)
+                                    else:
+                                        oldinside = True
+                                        if selfinside == True:
+                                            pass
+                                        else:
+                                            self.goInside(k)
+                                else:
+                                    if d == 2:
+                                        k = self.checkSo(segment,errorlist)
+                                        if selfinside == True:
+                                            selfinside = False
+                                            if oldinside == True:
+                                                pass
+                                            else:
+                                                self.endlist.append(k)
+                                        else:
+                                            selfinside = True
+                                            if oldinside == True:
+                                                pass
+                                            else:
+                                                self.goInside(k)
+                                segment = QgsGeometry().fromPolyline([k,point])
+                                d = self.checkBoth(segment,errorlist,obg)
+                            if selfinside == False:
+                                if oldinside == False:
+                                    self.endlist.append(point)
                 pointid = pointid +1 
             if len(self.endlist)>1:
                 self.linetoaddgeom.append((self.endlist))
@@ -163,12 +229,10 @@ class bufferLines():
             self.lineprovider.addFeatures([linetoadd])
             #clean up, just to make sure no clutter remains. Probably unneccesary
             del self.list
-            del self.linetoaddgeom
             del self.endlist
             del templist
             del errorlist
             
-              	
     def createFlatBuffer(self,baseline,buflength,step,filename):#main function
         self.crs = baseline.crs().toWkt()
         string = "LineString?crs=" + self.crs
@@ -184,12 +248,12 @@ class bufferLines():
             bufcurr = bufcurr + step
         QgsVectorFileWriter.writeAsVectorFormat(self.linelayer, filename, "utf-8", baseline.crs(), "ESRI Shapefile")
 
-    def meanAzimuth(self,angle1,angle2):#calculate mean angle between two lines
+    def meanAzimuth(self,angle1,angle2):#calculate the mean bering between two lines
         x = math.cos(math.radians(angle1)) + math.cos(math.radians(angle2))
         y = math.sin(math.radians(angle1))+ math.sin(math.radians(angle2))
         return math.degrees(math.atan2(y,x))
       
-    def diffAzimuth(self,angle1,angle2):#calculate angle between two lines
+    def diffAzimuth(self,angle1,angle2):#calculates the the angle between two lines
         diff = angle1 - angle2
         if diff < -180:
             dif = diff + 360
@@ -218,27 +282,14 @@ class bufferLines():
                             if diff >90:
                                 return -(1/ math.cos(math.radians(diff))*bufcurrent)
                             
-    def checkOo(self,segment,obg):#check if crosses oldbaseline. returns intersection or False
-        if segment.crosses(obg):
-            if segment.intersection(obg).asPoint() != QgsPoint(0,0):
-                return segment.intersection(obg)
-                
-            else:
-                return False
-        else:
-            return False
-        
-      
-    def checkSo(self,segment,errorlist):#check if crosses itself (defined by errorlist). Returns intersection or False
-     k = False
-     for error in errorlist:
-       #ugly hack: add a tiny buffer to error, so line "sees" it
-       buf = QgsGeometry().fromPoint(error).buffer(0.00001,5)
-       if segment.crosses(buf) == True:
-           if segment.intersection(buf).asPoint() != QgsPoint(0,0):
-               k = segment.intersection(buf)
-     return k
- 
+
+    def goInside(self,k): #write a point and then prepare for dump to to feature
+         self.endlist.append(k)
+         if len(self.endlist) > 1:
+             self.linetoaddgeom.append(self.endlist)
+         del self.endlist
+         self.endlist = []
+    
     def checkCrossing(self, segment, errorlist,obg): #check if there is any crossing
         oo = self.checkOo(segment, obg)
         so = self.checkSo(segment,errorlist)
@@ -250,67 +301,66 @@ class bufferLines():
         else:
             return True
         
-    def goInside(self, vertex): #end a line segment
-         self.endlist.append(vertex.asPoint())
-         if len(self.endlist)>1:
-             self.linetoaddgeom.append(self.endlist)
-             del self.endlist
-             self.endlist = []
-
-    def doCrossing(self,segment,errorlist,obg,oin,sin,vertex): #actually cross
-        so = self.checkSo(segment,errorlist)
-        oo = self.checkOo(segment,obg)
-        if so == False:
-            if oo == False:
-                pass #should not happen
-            else: 
-                oin,k = self.crossO(oin,sin,segment,obg)
+    def checkOo(self,segment,obg):#check if crosses oldbaseline. returns intersection or False # TODO what if there's TWO?
+        if segment.crosses(obg):
+            seg = segment
+            #get all bits and return the one which is earliest TODO dirty
+            dummy, bits, dummy2 = seg.splitGeometry(obg.asPolyline(),False)
+            bits.append(seg)
+            if len(bits) <= 1:
+                return False
+            else:
+                for bit in bits:
+                    points = [bit.asPolyline()[0], bit.asPolyline()[1]]
+                    pd = segment.length()
+                for point in points:
+                    pt =QgsGeometry().fromPoint(point).distance(QgsGeometry().fromPoint(segment.asPolyline()[0])) 
+                    if pt < pd:
+                        if pt > 0:
+                            pd = QgsGeometry().fromPoint(point).distance(QgsGeometry().fromPoint(segment.asPolyline()[0]))
+                            x = point
+                return x
         else:
-            if oo == False:
-                sin,k = self.crossS(oin,sin,segment,errorlist)
-            else:
-                if self.firstPoint(oo,so,vertex) == False:
-                    oin,k = self.crossO(oin,sin,segment,obg)
-                else:
-                    sin, k = self.crossS(oin,sin,segment,errorlist)
-        return oin,sin,k 
-      
-    def crossO(self,oin,sin,segment,obg):#cross the oldbaseline
-        k = self.checkOo(segment,obg)
-        if oin == False:
-            oin = True
-            if sin == False:
-                self.goInside(k)
-            else:
-                pass
-        else:
-            oin = False
-            if sin == True: 
-                pass
-            else:
-                self.endlist.append(k.asPoint())
-        return oin, k
-     
-    def crossS(self,oin,sin,segment, errorlist):#cross itself
-        k = self.checkSo(segment,errorlist)
-        if sin == False:
-            sin = True
-            if oin == False:
-                self.goInside(k)
-            else: #oin == True
-                pass
-        else:
-            sin = False
-            if oin == True:
-                pass
-            else:
-                self.endlist.append(k.asPoint())
-        return sin, k
-    
-    def firstPoint(self, v1,v2,v0): #which point is earlier?
-        one = v1.distance(QgsGeometry().fromPoint(v0))
-        two = v2.distance(QgsGeometry().fromPoint(v0))
-        if one > two:
             return False
-        else:
-            return True
+            
+    def checkSo(self,segment,errorlist):#check if crosses itself (defined by errorlist). Returns intersection or False
+     k = False
+     count = 0
+     for error in errorlist:
+       if error == segment.asPolyline()[0]:
+           pass
+       else:
+           if error == segment.asPolyline()[1]:
+               pass
+           else: 
+               if error.onSegment(segment.asPolyline()[0],segment.asPolyline()[1]) == 2:
+                   k = error
+               else:
+                   pass
+               
+     if count > 1:
+         pass#TODO check if there is more than one error in segment, return the earliest
+     return k
+    
+    def checkBoth(self,segment,errorlist,obg):#check if any crosses, 0 or 1 (OO) or 2 (SO)
+          k = self.checkSo(segment,errorlist)
+          l = self.checkOo(segment,obg)
+          if k != False:
+              if l != False:
+                  distA = QgsGeometry().fromPoint(segment.asPolyline()[0]).distance(QgsGeometry().fromPoint(k))
+                  print segment.asPolyline()[0], l
+                  distB = QgsGeometry().fromPoint(segment.asPolyline()[0]).distance(QgsGeometry().fromPoint(l))
+                  if distA < distB:
+                      return 1
+                  else:
+                      return 2
+                      
+              else:
+                  return 2
+          else:
+              if l == True:
+                  return 1
+              else:
+                  return 0
+              
+          
