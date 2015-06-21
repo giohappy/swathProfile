@@ -183,9 +183,7 @@ class swathProfile:
         del self.toolbar
 
 
-    def run(self):
-        # show the dialog
-        #loop the GUI until each required parameter is checked
+    def run(self):# show the dialog, loop the GUI until each required parameter is checked
         chekk = "0"
         self.dlg.inputRasterBox.clear()
         self.dlg.inputBaselineBox.clear()
@@ -195,20 +193,18 @@ class swathProfile:
                 self.dlg.inputBaselineBox.addItem( layer.name(), layer )
             if layer.type() == QgsMapLayer.RasterLayer:
                 self.dlg.inputRasterBox.addItem( layer.name(), layer )
-        while chekk != "1":
+        while chekk != True:
             self.dlg.show()
             result = self.dlg.exec_()
             #if okay pressed, check for parameters
             if result: #if okay is pressed
               chekk = self.checkempties() #check parameters
-              if chekk=="1":
+              if chekk==True:
                   self.operate()
             else:
-              chekk = "1" #end check loop and stop running
+              chekk = True #end check loop and stop running
             
-    def checkempties(self):
-      #check if all input criteria are met, TODO
-      
+    def checkempties(self):# check if all input citeria are met
       index = self.dlg.inputBaselineBox.currentIndex()
       self.baselinelayer= self.dlg.inputBaselineBox.itemData(index)
       index = self.dlg.inputRasterBox.currentIndex()
@@ -217,9 +213,8 @@ class swathProfile:
       self.linesshape = self.dlg.outputShapeBox.text()
       
       if self.baselinelayer == None:
-          #error
           QMessageBox.information(None, "swath profile", "No baseline layer detected")
-          return "0"
+          return False
       else:
         if self.baselinelayer.isValid():
             features = self.baselinelayer.getFeatures()
@@ -228,39 +223,34 @@ class swathProfile:
                 count = count +1
             if count > 1:
                 QMessageBox.information(None, "swath profile", "Too many lines in the baselinlayer. Only one feature in the layer is supported for now")
-                return "0"
+                return False
             else:
-                if self.raster != None:
-                    #check outputtable 
+                if self.raster == None:
+                    QMessageBox.information(None, "swath profile", "No raster to sample found.")
+                    return False
+                else:
                     if self.file_to_store == "":
                       QMessageBox.information(None, "swath profile", "No output table. Please specifiy an output table.")
-                      return "0"
+                      return False
                     else:
-                        #check shapefileoutput
                         if self.linesshape == "":
                           QMessageBox.information(None, "swath profile", "No output line shape. Please specifiy an shapefile for the output swath lines.")
-                          return "0"
+                          return False
                         else:
                             if self.linesshape.endswith(".shp"):
-                              return "1"
+                              return True
                             else:
                                 self.linesshape = self.linesshape + ".shp"
-                                return "1"
-                else:
-                    QMessageBox.information(None, "swath profile", "No raster to sample found.")
-                    return "0"
+                                return True
         else:
-            QMessageBox.information(None, "swath profile", "No line layer found.")
-            return "0"
+            QMessageBox.information(None, "swath profile", "No valid baseline layer found.")
+            return False
       
-      
-    
-    def operate(self):
-      #define variables
+    def operate(self): #run
       self.profLen = float(self.dlg.lengthProfilesBox.text())
       self.splitLen = float(self.dlg.distProfilesBox.text())
       self.res = float(self.dlg.resolutionBox.text())
-      #create lines for profile
+      #create lines for profile. In extra file
       bufferLines().createFlatBuffer(self.baselinelayer,self.profLen,self.res,self.linesshape)
       
       self.lineshapelayer = QgsVectorLayer(self.linesshape, "Lineshapelayer", "ogr")
@@ -268,7 +258,7 @@ class swathProfile:
 
       self.opened_file= os.open(self.file_to_store,os.O_APPEND|os.O_CREAT|os.O_RDWR)
       #write header
-      data = "dist, median, mean, min, max, sd, quart25,quart75\n"
+      data = "dist, median, mean, min, max, sd, quart25,quart75, sample size\n"
       os.write(self.opened_file, data)
       for f in self.lineshapelayer.getFeatures():
           samplelen=0
@@ -290,17 +280,21 @@ class swathProfile:
           self.aggregate(self.datalist)
       os.close(self.opened_file)
 
-    def aggregate(self,datalist):
-        nmedian = str(numpy.median(datalist))
-        nmean = str(numpy.mean(datalist))
-        nmin = str(numpy.min(datalist))
-        nmax = str(numpy.max(datalist))
-        nsd = str(numpy.std(datalist))
-        nq25 = str(numpy.percentile(datalist,25))
-        nq75 = str(numpy.percentile(datalist,75))
-        data = str(self.position)+","+nmedian+","+ nmean+ ","+ nmin+ ","+ nmax+ ","+nsd+ "," + nq25+ ","+nq75+"\n"
-        os.write(self.opened_file, data)
+    def aggregate(self,datalist): #aggregate data
+        if len(datalist) != 0:
+            nmedian = str(numpy.median(datalist))
+            nmean = str(numpy.mean(datalist))
+            nmin = str(numpy.min(datalist))
+            nmax = str(numpy.max(datalist))
+            nsd = str(numpy.std(datalist))
+            nq25 = str(numpy.percentile(datalist,25))
+            nq75 = str(numpy.percentile(datalist,75))
+            nn = str(len(datalist))
+            data = str(self.position)+","+nmedian+","+ nmean+ ","+ nmin+ ","+ nmax+ ","+nsd+ "," + nq25+ ","+nq75+","+nn+"\n"
+            os.write(self.opened_file, data)
+        else:
+            data = str(self.position)+",,,,,,,,\n"
+            os.write(self.opened_file, data)
 #todo:
 #reprojection before querying
 #overwrite file_to_store instead of appending
-#buffer oversampling problem
