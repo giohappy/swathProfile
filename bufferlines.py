@@ -166,14 +166,18 @@ class bufferLines():
             for error in errors:
                 if error.hasWhere():
                   errorlist.append(error.where())
+                  
                   S=QgsFeature()
                   S.setGeometry(QgsGeometry().fromPoint(error.where()))
+                  S.setAttributes([bufcurrent])
                   self.polyp.addFeatures([S])
             #put errors into list that are between ceropoint and first point
             segment = QgsGeometry().fromPolyline([baseline.geometry().asPolyline()[0], constructline.geometry().asPolyline()[0]])
             f = self.checkOo(segment,constructline.geometry(),bufcurrent)      
             if f != False:
                 errorlist.append(f)
+                
+            
             if bufcurrent == 0:
               current2 = QgsGeometry()
             else:
@@ -201,7 +205,7 @@ class bufferLines():
                   if bufcurrent == 0:
                             self.endlist.append(point)#baseline won't be checked for validity, just copied
                   else:
-                        d = self.checkAll(segment,errorlist,obg,obg2,current2,bufcurrent, nullline)
+                        d = self.checkAll(segment,errorlist,obg,obg2,current2,bufcurrent, nullline) 
                         while len(d) > 0:
                           for dd in d:
                             if dd == 1:
@@ -244,12 +248,7 @@ class bufferLines():
                                       else:
                                           pass 
                           segment = QgsGeometry().fromPolyline([k,point])
-                          d = self.checkAll(segment,errorlist,obg,obg2,current2,bufcurrent,nullline)
-                          #S=QgsFeature()
-                          #S.setGeometry(QgsGeometry().fromPoint(k))
-                          #S.setAttributes([dd])
-                          #self.polyp.addFeatures([S])
-                        self.pointAppend(point,selfinside,obginside,obg2inside,sosinside)
+                          d = self.checkAll(segment,errorlist,obg,obg2,current2,bufcurrent,nullline)    
                 else: #every other point
                         if bufcurrent == 0:#assuming that the baseline is valid
                             self.endlist.append(point)
@@ -259,7 +258,6 @@ class bufferLines():
 	                    #check for intersections
                             d = self.checkAll(segment,errorlist,obg,obg2,current2,bufcurrent, nullline)
                             while len(d) > 0:
-                              print d
                               for dd in d:
 	                        if dd == 1:
                                     k = self.checkOo(segment,obg,bufcurrent)
@@ -334,12 +332,11 @@ class bufferLines():
                                                           else:
                                                               sosinside = True
                                                               self.goInside(k)
-                              print dd,k, selfinside,obginside,obg2inside,sosinside             
                               self.pointAppend(k,selfinside,obginside,obg2inside,sosinside)
                               segment = QgsGeometry().fromPolyline([k,point])
                               d = self.checkAll(segment,errorlist,obg,obg2,current2,bufcurrent,nullline)
-                              print k.x(),k.y()
-                            self.pointAppend(point,selfinside,obginside,obg2inside,sosinside)
+                              
+                self.pointAppend(point,selfinside,obginside,obg2inside,sosinside)
                 pointid = pointid +1 
             #dump linetoaddgeom to feature
             if len(self.endlist)>1:
@@ -418,7 +415,7 @@ class bufferLines():
                   return False
               else:
                   x = False
-                  minlength = osegment.length()
+                  minlength = osegment.length()  - 0.0000001
                   for pnt in points:
                       ptdist = QgsGeometry().fromPoint(pnt).distance(QgsGeometry().fromPoint(osegment.asPolyline()[0]))
                       if ptdist > 0.0000001: #dirty, but need to capture the "wrong" crossings that are up to 0.1e-09 wide
@@ -442,40 +439,52 @@ class bufferLines():
        if self.AequalsB(error,segment.asPolyline()[0]) == True:
            pass
        else:
-           if error.onSegment(segment.asPolyline()[0],segment.asPolyline()[1]) == 2: #todo check if accuracy bug affects.
+         if error == segment.asPolyline()[0]:
+           pass
+         else:
+           if QgsGeometry().fromPoint(error).buffer(0.000001,5).touches(segment) == True:  
                count.append(error)
            else:
-               pass
+             if error.onSegment(segment.asPolyline()[0],segment.asPolyline()[1]) == 2:
+                 count.append(error)
+             else:
+                 pass
       
      if len(count) > 0:
-         pd = segment.length()
+         seglen = abs(segment.length()) - 0.0000001
          for pnt in count:
-            pt =QgsGeometry().fromPoint(pnt).distance(QgsGeometry().fromPoint(segment.asPolyline()[0])) 
-            if pt < pd:
-                if pt > 0.00001:
-                    pd = QgsGeometry().fromPoint(pnt).distance(QgsGeometry().fromPoint(segment.asPolyline()[0]))
+            ptdist = abs(QgsGeometry().fromPoint(pnt).distance(QgsGeometry().fromPoint(segment.asPolyline()[0]))) 
+            if ptdist > 0.0000001: 
+                if ptdist < seglen :
                     xx = pnt
-         print xx, pd
-     return xx
+                    seglen = ptdist
+                else:
+                    pass
+            else:
+                pass
+         return xx
+     else:
+         return False
+   
     
     def checkAll(self,segment,errorlist,obg,obg2,current2,bufcurrent, ceroline):#check if any crosses,
           returnvalue = []
-          k = self.checkOo(segment,obg,bufcurrent)
-          l = self.checkSo(segment,errorlist)
-          m = self.checkOo(segment,obg2,bufcurrent)
-          n = self.checkOo(segment,current2,bufcurrent)
-          o = self.checkOo(segment,ceroline,bufcurrent)
+          l = self.checkOo(segment,obg,bufcurrent)
+          m = self.checkSo(segment,errorlist)
+          n = self.checkOo(segment,obg2,bufcurrent)
+          o = self.checkOo(segment,current2,bufcurrent)
+          p = self.checkOo(segment,ceroline,bufcurrent)
           checklist = {}
-          if k != False:
-              checklist[1] = k
           if l != False:
-              checklist[2] = l
+              checklist[1] = l
           if m != False:
-              checklist[3] = m
+              checklist[2] = m
           if n != False:
-              checklist[4] = n
+              checklist[3] = n
           if o != False:
-              checklist[5] = o
+              checklist[4] = o
+          if p != False:
+              checklist[5] = p
           if len(checklist) == 0:
             del checklist
             return returnvalue
@@ -485,7 +494,7 @@ class bufferLines():
             for entry in checklist.items():
               dist = QgsGeometry().fromPoint(entry[1]).distance(QgsGeometry().fromPoint(segment.asPolyline()[0]))
               if dist <= maxdist:
-                if dist > 0.00001:
+                if dist > 0.0000001:
                   maxdist = dist
                   x = entry[0]
                   coord = entry[1]
@@ -501,13 +510,14 @@ class bufferLines():
                 del checklist
                 return returnvalue
               
+              
     def howManyIntersects(self,simpleline,complicatedline): #return how often polyline intersects the simpleline
       tmp = QgsFeature()
       tmp.setGeometry(simpleline)
       splitpoints = []
-      pointid = 0
+      pointidx = 0
       for point in complicatedline.asPolyline():
-          segmenttocheck = self.getSegment(complicatedline,pointid)
+          segmenttocheck = self.getSegment(complicatedline,pointidx)
           if segmenttocheck == False:
               pass
           else:
@@ -519,7 +529,7 @@ class bufferLines():
                        splitpoints.append(bit.asPolyline()[0])
                        splitpoints.append(bit.asPolyline()[-1])
                    tmp.setGeometry(simpleline)
-          pointid = pointid + 1         
+          pointidx = pointidx + 1         
       realsplitpoints = []
       for point in splitpoints:
           if self.AequalsB(point,simpleline.asPolyline()[0]) == True:
@@ -543,7 +553,7 @@ class bufferLines():
     def checkIfInside(self, point,pointB, line, distance): #checks if fist point of baseline  is "inside" the line
         q = QgsFeature()
         q.setGeometry(QgsGeometry().fromPoint(point))
-        self.translate(q.geometry(), point.azimuth(pointB),distance - 0.00001) #TODO dirty, but avoiding e-09 false positives
+        self.translate(q.geometry(), point.azimuth(pointB),distance - 0.0000001) #TODO dirty, but avoiding e-09 false positives
         linea = QgsGeometry().fromPolyline([point,pointB])
         if self.howManyIntersects(linea,line)%2 == 1:
             return True
@@ -574,9 +584,9 @@ class bufferLines():
         return False
       
     def AequalsB(self,a,b):#crutch because a==b and a.equals(b) and a.onSegment(b,c) are sometimes wrong?
-       #buf = QgsGeometry().fromPoint(a).buffer(0.00001,3)
-       #if buf.contains(b) == True:
-       if a == b:
+       buf = QgsGeometry().fromPoint(a).buffer(0.0001,10)
+       if buf.contains(b) == True:
+       #if a == b:
          return True
        else:
          return False
