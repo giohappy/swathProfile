@@ -28,21 +28,12 @@ from qgis.core import *
 
 class bufferLines():
 
-            
     def createFlatBuffer(self,baseline,buflength,step,filename):#main function
-        self.crs = baseline.crs().toWkt()
-        string = "LineString?crs=" + self.crs
+        string = "LineString?crs=" + baseline.crs().toWkt()
         self.linelayer = QgsVectorLayer(string,"Buffer Layer", "memory")
         self.lineprovider= self.linelayer.dataProvider()
         self.lineprovider.addAttributes([QgsField('d', QVariant.Double)])
         self.linelayer.updateFields()
-        
-        string = "Point?crs=" + self.crs
-        self.poly = QgsVectorLayer(string,"Buffer Layer", "memory")
-        self.polyp= self.poly.dataProvider()
-        self.polyp.addAttributes([QgsField('d', QVariant.Double)])
-        self.poly.updateFields()
-        QgsMapLayerRegistry.instance().addMapLayer(self.poly)
         
         bufcurr = 0 + step
         self.list=[]
@@ -167,10 +158,6 @@ class bufferLines():
                 if error.hasWhere():
                   errorlist.append(error.where())
                   
-                  S=QgsFeature()
-                  S.setGeometry(QgsGeometry().fromPoint(error.where()))
-                  S.setAttributes([bufcurrent])
-                  self.polyp.addFeatures([S])
             #put errors into list that are between ceropoint and first point
             segment = QgsGeometry().fromPolyline([baseline.geometry().asPolyline()[0], constructline.geometry().asPolyline()[0]])
             f = self.checkOo(segment,constructline.geometry(),bufcurrent)      
@@ -253,19 +240,20 @@ class bufferLines():
                         if bufcurrent == 0:#assuming that the baseline is valid
                             self.endlist.append(point)
                         else: 
-                            vertexminusone = constructline.geometry().vertexAt(pointid - 1)
-	                    segment = QgsGeometry().fromPolyline([vertexminusone,point])
+                            vertexminusone = constructline.geometry().vertexAt(pointid-1)
+                            segment = QgsGeometry().fromPolyline([vertexminusone,point])
 	                    #check for intersections
                             d = self.checkAll(segment,errorlist,obg,obg2,current2,bufcurrent, nullline)
                             while len(d) > 0:
                               for dd in d:
-	                        if dd == 1:
+                                if dd == 1:
                                     k = self.checkOo(segment,obg,bufcurrent)
                                     if obginside == True:
                                         obginside = False
                                     else:
                                         obginside = True
-                                        self.goInside(k)
+                                        k2 = self.insideBuffer(k,segment, step, True)
+                                        self.goInside(k2)
                                 else:
                                     if dd == 2:
                                         k = self.checkSo(segment,errorlist)
@@ -285,7 +273,8 @@ class bufferLines():
                                                 obg2inside = False
                                             else:
                                                 obg2inside = True
-                                                self.goInside(k)
+                                                k2 = self.insideBuffer(k,segment, step, True)
+                                                self.goInside(k2)
                                         else:
                                             if dd == 4: 
                                                 k = self.checkOo(segment,current2,bufcurrent)
@@ -321,8 +310,8 @@ class bufferLines():
                                                           else:
                                                               sosinside = True
                                                               self.goInside(k)
-                                                          if obg2inside == True:
-                                                              obg2inside = False
+                                                          if obginside == True:
+                                                              obginside = False
                                                           else:
                                                               obg2inside = True
                                                               self.goInside(k)
@@ -332,13 +321,11 @@ class bufferLines():
                                                           else:
                                                               sosinside = True
                                                               self.goInside(k)
-                              self.pointAppend(k,selfinside,obginside,obg2inside,sosinside)
                               segment = QgsGeometry().fromPolyline([k,point])
+                              self.pointAppend(k,selfinside,obginside,obg2inside,sosinside)
                               d = self.checkAll(segment,errorlist,obg,obg2,current2,bufcurrent,nullline)
-                              
                 self.pointAppend(point,selfinside,obginside,obg2inside,sosinside)
-                pointid = pointid +1 
-            #dump linetoaddgeom to feature
+                #dump linetoaddgeom to feature
             if len(self.endlist)>1:
                 self.linetoaddgeom.append((self.endlist))
             linetoadd = QgsFeature()
@@ -381,7 +368,6 @@ class bufferLines():
                             if diff >90:
                                 return -(1/ math.cos(math.radians(diff))*bufcurrent)
                             
-
     def goInside(self,k): #write a point and then prepare for dump to to feature
          self.endlist.append(k)
          if len(self.endlist) > 1:
@@ -418,7 +404,7 @@ class bufferLines():
                   minlength = osegment.length()  - 0.0000001
                   for pnt in points:
                       ptdist = QgsGeometry().fromPoint(pnt).distance(QgsGeometry().fromPoint(osegment.asPolyline()[0]))
-                      if ptdist > 0.0000001: #dirty, but need to capture the "wrong" crossings that are up to 0.1e-09 wide
+                      if ptdist > 0.0000001: 
                           if ptdist < minlength:
                               minlength = ptdist
                               x = pnt
@@ -426,7 +412,6 @@ class bufferLines():
                               pass
                       else:
                           pass
-                  
                   return x
         else:
            return False
@@ -442,16 +427,16 @@ class bufferLines():
          if error == segment.asPolyline()[0]:
            pass
          else:
-           if QgsGeometry().fromPoint(error).buffer(0.000001,5).touches(segment) == True:  
+           if QgsGeometry().fromPoint(error).buffer(0.000001,5).intersects(segment) == True:  
                count.append(error)
            else:
-             if error.onSegment(segment.asPolyline()[0],segment.asPolyline()[1]) == 2:
-                 count.append(error)
-             else:
+             #if error.onSegment(segment.asPolyline()[0],segment.asPolyline()[1]) == 2:
+                 #count.append(error)
+             #else:
                  pass
       
-     if len(count) > 0:
-         seglen = abs(segment.length()) - 0.0000001
+     if len(count) > 0: #HERE SOME ERROR LURKS
+         seglen = abs(segment.length())
          for pnt in count:
             ptdist = abs(QgsGeometry().fromPoint(pnt).distance(QgsGeometry().fromPoint(segment.asPolyline()[0]))) 
             if ptdist > 0.0000001: 
@@ -560,7 +545,7 @@ class bufferLines():
         else:
             return False
           
-    def getSegment(self,line, pointid): #returns segment of multipolyline that ends at pointid
+    def getSegment(self,line, pointid): #returns segment of polyline that ends at pointid
         try:
             if line.adjacentVertices(pointid)[0] == -1:
                 return False
@@ -584,9 +569,17 @@ class bufferLines():
         return False
       
     def AequalsB(self,a,b):#crutch because a==b and a.equals(b) and a.onSegment(b,c) are sometimes wrong?
-       buf = QgsGeometry().fromPoint(a).buffer(0.0001,10)
+       buf = QgsGeometry().fromPoint(a).buffer(0.0000001,10)
        if buf.contains(b) == True:
        #if a == b:
          return True
        else:
          return False
+     
+    def insideBuffer(self,x,segment, step, onend):
+        if onend == True:
+            d = QgsGeometry().fromPoint(segment.asPolyline()[1])
+            az = segment.asPolyline()[0].azimuth(segment.asPolyline()[1])
+            self.translate(d,az,-step)
+        return x.asPoint()
+    

@@ -1,0 +1,23 @@
+set terminal postscript eps size 11,8
+set output "swath_profile.eps"
+set key top left
+set title "Swath profile"
+set encoding utf8
+set size ratio -40
+set xlabel 'distance (m)'
+set ylabel 'elevation (m)'
+set xtics nomirror 100
+set ytics nomirror 2.5
+set style fill solid 0.1
+set grid ytics xtics
+set border lw 0.05
+set style data lines
+set datafile separator ","
+
+plot 'output.csv' every ::1 using 1:7:8 smooth unique  w filledcu fc rgb "blue" title "quartiles",\
+'output.csv' every ::1 using 1:5:7 smooth unique fc rgb "yellow" notitle,\
+'output.csv' every ::1 using 1:4:8 smooth unique fc rgb "yellow" notitle,\
+'output.csv' every ::1 using 1:2 smooth unique lt 1 lw 3 title "median",\
+'output.csv' every ::1 using 1:4  smooth unique lt 3  lc rgb "blue" title "minimum",\
+'output.csv' every ::1 using 1:5  smooth unique lt 3  lc rgb "red" title "maximum" 
+
