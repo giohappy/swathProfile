@@ -455,7 +455,7 @@ class bufferLines():
     def checkAll(self,segment,errorlist,obg,obg2,current2,bufcurrent, ceroline):#check if any crosses,
           returnvalue = []
           l = self.checkOo(segment,obg,bufcurrent)
-          m = self.checkSo(segment,errorlist)
+          m = self.checkOo(segment,constructline,errorlist)
           n = self.checkOo(segment,obg2,bufcurrent)
           o = self.checkOo(segment,current2,bufcurrent)
           p = self.checkOo(segment,ceroline,bufcurrent)
@@ -577,9 +577,9 @@ class bufferLines():
          return False
      
     def insideBuffer(self,x,segment, step, onend):
-        if onend == True:
-            d = QgsGeometry().fromPoint(segment.asPolyline()[1])
-            az = segment.asPolyline()[0].azimuth(segment.asPolyline()[1])
-            self.translate(d,az,-step)
-        return x.asPoint()
+        #if onend == True:
+            #d = QgsGeometry().fromPoint(segment.asPolyline()[1])
+            #az = segment.asPolyline()[0].azimuth(segment.asPolyline()[1])
+            #self.translate(d,az,-step)
+        return x#.asPoint()
     
