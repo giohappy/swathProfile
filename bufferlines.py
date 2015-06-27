@@ -3,7 +3,10 @@
 /***************************************************************************
  buffer Lines
 
- This creates buffer lines for a baseline with the ends "cut off"
+ This creates buffer lines for a baseline with the ends "cut off".
+ 
+ Main Flow: createFlatBuffer -> createLine ->  buildLine
+ 
                               -------------------
         begin                : 2015-06-11
         copyright            : (C) 2015 by Maximilian Krambach
@@ -19,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 """
-#TODO: Beginning state is wrong somewhere, and passing through own ceroline makes lines disappear completely
 
 from qgis.analysis import QgsGeometryAnalyzer
 import math
@@ -29,42 +31,40 @@ from qgis.core import *
 
 class bufferLines():
 
-    def createFlatBuffer(self,baseline,buflength,step,filename):#main function
+    def createFlatBuffer(self,baseline,buflength,step,filename):#Main function. Call this from outside
+        #needs: a line feature with ONE polyline (baseline)
+        #a buffer distance that is applied to either side (so a 500 will give a total profile length of 1000)
+        #steps of distance between the buffers
+        #filename: a shapefile name for output
         string = "LineString?crs=" + baseline.crs().toWkt()
         self.linelayer = QgsVectorLayer(string,"Buffer Layer", "memory")
         self.lineprovider= self.linelayer.dataProvider()
         self.lineprovider.addAttributes([QgsField('d', QVariant.Double)])
         self.linelayer.updateFields()
-        
-        string = "LineString?crs=" + baseline.crs().toWkt()
-        self.poly = QgsVectorLayer(string,"Buffer Layer", "memory")
-        self.polyp= self.poly.dataProvider()
-        self.polyp.addAttributes([QgsField('d', QVariant.Double)])
-        self.poly.updateFields()
-        QgsMapLayerRegistry.instance().addMapLayer(self.poly)
-        
         bufcurr = 0 + step
         self.list=[]
-        ceroline = self.createLine(0,baseline,step)
-        oldceroline = ceroline
-        oldfeaturelist = self.buildLine(0,baseline,step,self.list,[],ceroline, [],[])
+        #copy the baseline
+        ceroline, endline = self.createLine(0,baseline,step)
+        oldfeaturelist= self.buildLine(0,baseline,step,self.list,[],ceroline, endline, [],[])
         del self.list
         oldfeatureoppositelist = oldfeaturelist
+        #loop and create the buffer lines
         while bufcurr <= buflength:
-            ceroline = self.createLine(-bufcurr,baseline,step)
+            ceroline,endline = self.createLine(-bufcurr,baseline,step)
             soslist = self.list
             del self.list
-            oldceroline = self.createLine(bufcurr,baseline,step)
+            oldceroline,oldendline = self.createLine(bufcurr,baseline,step)
             sos2list = self.list
             del self.list
-            oldfeat1 = self.buildLine(bufcurr,baseline,step,sos2list,soslist,oldceroline,oldfeatureoppositelist,oldfeaturelist) 
-            oldfeat2 = self.buildLine(-bufcurr,baseline,step,soslist,sos2list,ceroline,oldfeaturelist,oldfeatureoppositelist)
+            oldfeat1 = self.buildLine(bufcurr,baseline,step,sos2list,soslist,oldceroline,oldendline,oldfeatureoppositelist,oldfeaturelist) 
+            oldfeat2 = self.buildLine(-bufcurr,baseline,step,soslist,sos2list,ceroline,endline,oldfeaturelist,oldfeatureoppositelist)
             oldfeaturelist = oldfeat1
             oldfeatureoppositelist = oldfeat2
             bufcurr = bufcurr + step
+        #write to file
         QgsVectorFileWriter.writeAsVectorFormat(self.linelayer, filename, "utf-8", baseline.crs(), "ESRI Shapefile")
 
-    def translate(self,geom,azimuth,buflength): #pushes a geometry by azimuth and distance
+    def translate(self,geom,azimuth,buflength): #pushes a geometry by azimuth and distance, rotated by 90 degrees
         dx = math.sin(math.radians(azimuth-90))*buflength
         dy = math.cos(math.radians(azimuth-90))*buflength
         geom.translate(dx,dy)
@@ -76,7 +76,7 @@ class bufferLines():
             if sosinside == False:
               self.endlist.append(k)
               
-    def pointAdd(self,vertex,azimuth,bufcurrent): #adds a list to line buffer
+    def pointAdd(self,vertex,azimuth,bufcurrent): #adds a point to self.list
         pnkt= QgsFeature()
         pnkt.setGeometry(QgsGeometry().fromPoint(vertex))
         self.translate(pnkt.geometry(),azimuth,bufcurrent)
@@ -99,14 +99,14 @@ class bufferLines():
                    azimuth = vertex.azimuth(vertex2)
                    if not bufcurrent == 0:
                      self.pointAdd(vertex,azimuth,bufcurrent)
-                     #calculate cero leine which should not be crossed later on
+                     #calculate cero line which should not be crossed later on
                      clp = QgsFeature()
                      clp.setGeometry(QgsGeometry().fromPoint(vertex))
                      self.translate(clp.geometry(),azimuth,-bufcurrent)
                      clp2 = QgsFeature()
                      clp2.setGeometry(QgsGeometry().fromPoint(vertex))
                      self.translate(clp2.geometry(),azimuth,bufcurrent)
-                     ceroline = QgsGeometry().fromPolyline([clp2.geometry().asPoint(),clp.geometry().asPoint()])
+                     ceroline = QgsGeometry().fromPolyline([clp2.geometry().asPoint(),clp.geometry().asPoint()])                
                    else:
                        self.list.append(vertex)
                        ceroline = QgsGeometry()
@@ -116,33 +116,40 @@ class bufferLines():
                         azimuth = vertex2.azimuth(vertex)
                         if not bufcurrent == 0:
                             self.pointAdd(vertex,azimuth,bufcurrent)
+                            #create end line which hould not be crossed
+                            clp = QgsFeature()
+                            clp.setGeometry(QgsGeometry().fromPoint(vertex))
+                            self.translate(clp.geometry(),azimuth,-bufcurrent)
+                            clp2 = QgsFeature()
+                            clp2.setGeometry(QgsGeometry().fromPoint(vertex))
+                            self.translate(clp2.geometry(),azimuth,bufcurrent)
+                            endline = QgsGeometry().fromPolyline([clp2.geometry().asPoint(),clp.geometry().asPoint()])
                         else:
                             self.list.append(vertex)
-                    else:#average point: One azimuth upsteam, one downstream
+                            endline = QgsGeometry()
+                    else:#average point: One azimuth upstream, one downstream
                         vertex3 = baseline.geometry().vertexAt(vertexplusonenr)
                         vertex2 = baseline.geometry().vertexAt(vertexminusonenr)
                         az2 = vertex2.azimuth(vertex)
                         az3 = vertex.azimuth(vertex3)
-                        
                         diffazimuth = az2-az3
-                        
-                        if bufcurrent > 0.0: #positive buffer; different treatment of big and small angles
-                            if diffazimuth%360<=180:
+                        if bufcurrent > 0.0: #positive buffer; different treatment of big and small angles.
+                            if diffazimuth%360<=180: #sharp angles 
                                 azimuth = self.meanAzimuth(az2,az3)
                                 dist =  self.CalculateSharpDistance(az2,az3,bufcurrent)
                                 self.pointAdd(vertex,azimuth,dist)
                             else:          
                                 azimutha = az2
-                                while diffazimuth%360>180:
+                                while diffazimuth%360>180: #open angle gets intermediate points ewery 5 degrees
                                     self.pointAdd(vertex,azimutha,bufcurrent)
                                     azimutha = azimutha + 5
                                     diffazimuth = (azimutha - az3)%360
                                 azimutha = az3 
                                 self.pointAdd(vertex,azimutha,bufcurrent)                         
                         else: 
-                            if bufcurrent == 0: #Buffer: Zero
+                            if bufcurrent == 0: #Buffer: Zero; just replicate the buffer
                                 self.list.append(vertex)
-                            else:#negative buffer
+                            else:#negative buffer. Numbers and orientations are lightly different
                                if diffazimuth%360>=180:
                                    azimuth = self.meanAzimuth(az2,az3)
                                    dist =  - self.CalculateSharpDistance(az2,az3,bufcurrent)
@@ -156,12 +163,12 @@ class bufferLines():
                                    azimutha = az3 
                                    self.pointAdd(vertex,azimutha,bufcurrent)
                 pid = baseline.geometry().adjacentVertices(pid)[1]
-        return ceroline
+        return ceroline, endline
                 
-    def buildLine(self,bufcurrent,baselinelayer,step, ownlist,othersidelist,nullline, obglist, obg2list): #constructs the line by checking against intersections
+    def buildLine(self,bufcurrent,baselinelayer,step, ownlist,othersidelist,nullline, endline, obglist, obg2list): 
+        #constructs the line by checking against intersections and tracking inside/outside
         for baseline in baselinelayer.getFeatures():    
-            #create indexes for the five lines to check
-            
+            #create indexes for the five lines to check. TODO: Get obg and obg2 from previous run instead of recreating it
             slay = QgsVectorLayer("Linestring?crs="+baselinelayer.crs().toWkt(), "slay","memory")
             sind= QgsSpatialIndex()
             for i,j in list(enumerate(ownlist[1:])):
@@ -180,8 +187,8 @@ class bufferLines():
               a = QgsFeature()
               a.setGeometry(QgsGeometry().fromPolyline([point1,point2]))
               olay.dataProvider().addFeatures([a])
-              for feature in olay.getFeatures():
-                osind.insertFeature(feature)
+            for feature in olay.getFeatures():
+              osind.insertFeature(feature)
             obglay = QgsVectorLayer("Linestring?crs="+baselinelayer.crs().toWkt(),"obglay","memory")
             obgind= QgsSpatialIndex()
             for i,j in list(enumerate(obglist[1:])):
@@ -192,8 +199,6 @@ class bufferLines():
               obglay.dataProvider().addFeatures([a])
             for feature in obglay.getFeatures():
               obgind.insertFeature(feature)
-              
-              
             obg2lay = QgsVectorLayer("Linestring?crs="+baselinelayer.crs().toWkt(),"obg2lay","memory")
             ob2gind= QgsSpatialIndex()
             for i,j in list(enumerate(obg2list[1:])):
@@ -204,19 +209,21 @@ class bufferLines():
               obg2lay.dataProvider().addFeatures([a])
             for feature in obg2lay.getFeatures(): 
                 ob2gind.insertFeature(feature)
-              
             zind = QgsSpatialIndex()
             zlay = QgsVectorLayer("Linestring?crs="+baselinelayer.crs().toWkt(),"ceroline","memory")
             a = QgsFeature()
             a.setGeometry(nullline)
             zlay.dataProvider().addFeatures([a])
-            self.polyp.addFeatures([a])
+            b = QgsFeature()
+            b.setGeometry(endline)
+            zlay.dataProvider().addFeatures([a])
             for feature in zlay.getFeatures(): 
               zind.insertFeature(feature)
             segment = QgsGeometry().fromPolyline([baseline.geometry().asPolyline()[0], ownlist[0]])
             self.linetoaddgeom = [] #main buffer for writing multipolyline
             self.endlist = [] #buffer for the current polyline part
             
+            #initial states
             pointid = 0 #iterator
             obg2inside = False
             obginside = False
@@ -224,7 +231,11 @@ class bufferLines():
             sosinside = False
             
             for point in ownlist:
-                if pointid == 0:#first point, won't be in final line
+                if pointid == 0:#first point, won't be in final line.
+                    #the first point has a fixed state and will be the reference. 
+                    #First, a check if the baseline starts inside its own buffer, 
+                    #then the first "shadow" line to the first point will be
+                    #evaluated, but not created
                       if self.checkIfInside(baseline.geometry().asPolyline()[0],baseline.geometry().asPolyline()[1], sind,slay, abs(bufcurrent)) == True: 
                         selfinside = True
                       if abs(bufcurrent) == step:
@@ -239,8 +250,8 @@ class bufferLines():
                       if bufcurrent == 0:
                           self.endlist.append(point)#baseline won't be checked for validity, just copied
                       else:    
+                        #count intersections and change states accordingly. Ignore crossing beginning lines
                         d = self.checkAll(segment,sind,obgind,ob2gind,osind,bufcurrent,zind,slay,olay,obglay,obg2lay,zlay) 
-                        #count intersection and change states accordingly
                         while len(d) > 0:
                             for dd in d:
                               if dd == 1:
@@ -255,10 +266,14 @@ class bufferLines():
                               else:
                                 if dd == 2:
                                   k = self.checkOo(segment,sind,slay,bufcurrent)
-                                  if selfinside == True:
-                                      selfinside = False
+                                  if self.AequalsB(k,ownlist[0]) == True: 
+                                      pass
                                   else:
-                                      selfinside = True
+                                      if selfinside == True:
+                                          selfinside = False
+                                      else:
+                                          selfinside = True
+                                      
                                 else:
                                     if dd == 3:
                                       k = self.checkOo(segment,ob2gind,obg2lay,bufcurrent)
@@ -283,17 +298,17 @@ class bufferLines():
                                           pass 
                             segment = QgsGeometry().fromPolyline([k,point])
                             d = self.checkAll(segment,sind,obgind,ob2gind,osind,bufcurrent,zind,slay,olay,obglay,obg2lay,zlay)
-                else: #every other point
-                        if bufcurrent == 0:#assuming that the baseline is valid
+                else: #every other point will be checked for crossing between point and previous point, until no 
+                      #untracked crossing remains.
+                        if bufcurrent == 0:#just passing the baseline
                             self.endlist.append(point)
                         else: 
                             vertexminusone = ownlist[pointid-1]
                             segment = QgsGeometry().fromPolyline([vertexminusone,point])
 	                    #check for intersections
-                            #check changing states and switch all variables
+                            #check changing states and switch variables
                             d = self.checkAll(segment,sind,obgind,ob2gind,osind,bufcurrent,zind,slay,olay,obglay,obg2lay,zlay)
                             while len(d) > 0:
-                              print d
                               for dd in d:
                                 if dd == 1:
                                     k = self.checkOo(segment,obgind,obglay,bufcurrent)
@@ -328,25 +343,16 @@ class bufferLines():
                                                     self.goInside(k)
                                             else: 
                                                 if dd == 5:
+                                                    #treatment of cero and end lines. There, the switching becomes more complex
                                                     k = self.checkOo(segment, zind, zlay,bufcurrent)
                                                     dist = QgsGeometry().fromPoint(k).distance(QgsGeometry().fromPoint(ownlist[0]))
                                                     if self.backwardsCeroline(segment,baseline.geometry().asPolyline()[0],baseline.geometry().asPolyline()[1]) == False:
-                                                        if dist >= 2*abs(bufcurrent)-step: 
+                                                        if dist >= (2*abs(bufcurrent))-step: 
                                                           if sosinside == True:
                                                             sosinside = False
                                                           else:
                                                             sosinside = True
-                                                            self.goInside(k)   
-                                                          if obg2inside == True:
-                                                              obg2inside = False
-                                                          else:
-                                                              obg2inside = True
-                                                              self.goInside(k)
-                                                          if obginside == True:
-                                                              obginside = False
-                                                          else:
-                                                              obginside = True
-                                                              self.goInside(k)     
+                                                            self.goInside(k)
                                                         else: 
                                                             if dist >= step:
                                                                 if sosinside == True:
@@ -365,50 +371,61 @@ class bufferLines():
                                                                 else:
                                                                     sosinside = True
                                                                     self.goInside(k)
-                                                    else: #TODO exotic cases
-                                                          print sosinside,selfinside,obginside,obg2inside
-                                                     
-                                                    #if dist >= 2*abs(bufcurrent)-step: 
-                                                          if selfinside == True:
-                                                            selfinside = False
+                                                                if obg2inside == False:
+                                                                    obg2inside = True
+                                                                    self.beInside(k)
+                                                                else:
+                                                                    obg2inside = False
+                                                                if obginside == True:
+                                                                    obginside = False
+                                                                else:
+                                                                    obginside = True
+                                                                    self.beInside(k)
+                                                    else: 
+                                                      if dist >= (2*abs(bufcurrent))-step:
+                                                          if selfinside == False:
+                                                              selfinside= True
                                                           else:
-                                                            selfinside = True
-                                                            self.goInside(k)   
+                                                              selfinside = False
+                                                              self.goInside(k)
                                                           if obg2inside == True:
                                                               obg2inside = False
                                                           else:
                                                               obg2inside = True
-                                                              self.goInside(k)
+                                                              self.beInside(k)
                                                           if obginside == True:
                                                               obginside = False
                                                           else:
                                                               obginside = True
-                                                              self.goInside(k)     
-                                                        #else: 
-                                                            #if dist >= step:
-                                                                #if selfinside == True:
-                                                                  #selfinside = False
-                                                                #else:
-                                                                    #selfinside = True
-                                                                    #self.goInside(k)
-                                                                #if obginside == True:
-                                                                    #obginside = False
-                                                                #else:
-                                                                    #obginside = True
-                                                                    #self.goInside(k)
-                                                            #else:                                                         
-                                                                #if selfinside == True:
-                                                                    #sosinside = False
-                                                                #else:
-                                                                    #selfinside = True
-                                                                    #self.goInside(k)    
+                                                              self.beInside(k)
+                                                      else: 
+                                                          if dist >= step:
+                                                              if selfinside == True:
+                                                                  selfinside = False
+                                                              else:
+                                                                  selfinside = True
+                                                                  self.goInside(k)
+                                                              if obg2inside == True:
+                                                                  obg2inside = False
+                                                              else:
+                                                                  obg2inside = True
+                                                                  self.beInside(k)
+                                                          else: #dist < step
+                                                              if selfinside == True:
+                                                                  selfinside = False
+                                                              else:
+                                                                  selfinside = True
+                                                                  self.goInside(k)
+                                                              
+                              print dd, sosinside,selfinside,obginside,obg2inside, bufcurrent                                    
                               segment = QgsGeometry().fromPolyline([k,point])
                               self.pointAppend(k,selfinside,obginside,obg2inside,sosinside)
                               d = self.checkAll(segment,sind,obgind,ob2gind,osind,bufcurrent,zind,slay,olay,obglay,obg2lay,zlay)
+                #add the end of the section to the line, if it is outside
                 self.pointAppend(point,selfinside,obginside,obg2inside,sosinside)
                 pointid = pointid + 1
                 
-            #dump linetoaddgeom to feature
+            #dump linetoaddgeom(list of polylines created) to feature
             if len(self.endlist)>1:
                 self.linetoaddgeom.append((self.endlist))
             linetoadd = QgsFeature()
@@ -416,10 +433,11 @@ class bufferLines():
             linetoadd.setGeometry(QgsGeometry().fromMultiPolyline(self.linetoaddgeom))
             self.lineprovider.addFeatures([linetoadd])
             
+            #clean up #TODO unnecessary?
             del slay, sind, olay, osind, obglay,obgind, obg2lay,ob2gind, zlay, zind
         return ownlist
             
-    def meanAzimuth(self,angle1,angle2):#calculate the mean bering between two lines
+    def meanAzimuth(self,angle1,angle2):#calculate the mean bearing between two lines
         x = math.cos(math.radians(angle1)) + math.cos(math.radians(angle2))
         y = math.sin(math.radians(angle1))+ math.sin(math.radians(angle2))
         return math.degrees(math.atan2(y,x))
@@ -433,6 +451,7 @@ class bufferLines():
         return diff
      
     def CalculateSharpDistance(self,az2,az3,bufcurrent): #calculate distance on "inner" angles
+        #pure buffer distance is too low
         half= self.meanAzimuth(az2,az3)
         diff = self.diffAzimuth(az2,half)
         if diff <(-90):
@@ -453,25 +472,29 @@ class bufferLines():
                             if diff >90:
                                 return -(1/ math.cos(math.radians(diff))*bufcurrent)
                             
-    def goInside(self,k): #write a point and then prepare for write to feature. Also, clear endlist so we won't continue the line
+    def goInside(self,k): #write a point and then prepare the line for writing to feature. 
+        #Also, clear endlist so we won't continue the line
          self.endlist.append(k)
          if len(self.endlist) > 1:
              self.linetoaddgeom.append(self.endlist)
          del self.endlist
          self.endlist = []
          
-    def beInside(self,k): #prepare for write to feature without writing the point.
+    def beInside(self,k): #prepare for writing to feature without writing the point. 
          if len(self.endlist) > 1:
            self.linetoaddgeom.append(self.endlist)
          del self.endlist
          self.endlist = []
     
-    def checkOo(self,osegment,index,layer,bufcurrent):#check if osegment crosses indexed feature. returns first intersection or False
+    def checkOo(self,osegment,index,layer,bufcurrent):#check if osegment crosses indexed feature. 
+        #returns first intersection or False
         points = []
         req = []
+        #get the features that are in the area out of the index
         for idy in index.intersects(osegment.boundingBox()):
             req.append(idy)
         request = QgsFeatureRequest().setFilterFids(req)
+        #check for intersections
         for segment in layer.getFeatures(request):
             if segment.geometry() == None:
               pass
@@ -479,7 +502,7 @@ class bufferLines():
               if segment.geometry().equals(osegment)== True:
                 pass
               else:
-                if segment.geometry().intersects(osegment) == True:
+                if segment.geometry().intersects(osegment) == True: #here TODO?
                   inter = segment.geometry().intersection(osegment)
                   points.append(inter.asPoint())
                 else:
@@ -487,38 +510,20 @@ class bufferLines():
               
         if len(points)==0:
             return False
-        else:
+        else: 
+            #get the first occurence of an intersection
             x = False
             minlength = osegment.length()
             for pnt in points:
-                ptdist = QgsGeometry().fromPoint(pnt).distance(QgsGeometry().fromPoint(osegment.asPolyline()[0]))
+                ptdist = abs(QgsGeometry().fromPoint(pnt).distance(QgsGeometry().fromPoint(osegment.asPolyline()[0])))
                 if ptdist > 0.0000001: 
                     if ptdist < minlength:
                         minlength = ptdist
                         x = pnt
-                    else:
-                        pass
-                else:
-                    pass
             return x
-        if len(count) > 0: 
-         seglen = abs(segment.length())
-         for pnt in count:
-            ptdist = abs(QgsGeometry().fromPoint(pnt).distance(QgsGeometry().fromPoint(segment.asPolyline()[0]))) 
-            if ptdist > 0.0000001: 
-                if ptdist < seglen :
-                    xx = pnt
-                    seglen = ptdist
-                else:
-                    pass
-            else:
-                pass
-         return xx
-       
-        else:
-         return False
      
     def checkAll(self,segment,sind,obgind,ob2gind,osind,bufcurrent,zind,slay,olay,obglay,obg2lay,zlay):#check if any crosses exist
+          #returns a list of crossings that are on the first intersection point
           returnvalue = []
           l = self.checkOo(segment,obgind,obglay,bufcurrent)
           m = self.checkOo(segment,sind,slay,bufcurrent)
@@ -542,6 +547,7 @@ class bufferLines():
           else:
             maxdist = segment.length()
             #get the first crossing
+            x = None
             for entry in checklist.items():
               dist = QgsGeometry().fromPoint(entry[1]).distance(QgsGeometry().fromPoint(segment.asPolyline()[0]))
               if dist <= maxdist:
@@ -551,7 +557,8 @@ class bufferLines():
                   coord = entry[1]
             if len(checklist) == 1:
                 del checklist
-                returnvalue.append(x)
+                if x != None:
+                    returnvalue.append(x)
                 return returnvalue
             #check if first crossing is in there more than once
             else: 
@@ -563,37 +570,43 @@ class bufferLines():
                 del checklist
                 return returnvalue
               
-    def checkIfInside(self, point,pointB, index,layer, distance): #checks if fist point of baseline  is "inside" the line given by a(spatial)index
+    def checkIfInside(self, point,pointB, index,layer, distance): 
+        #checks if fist point of baseline  is "inside" the line given by index
+        #create a line along the general starting direction, about current buffer length long
         e = QgsFeature()
         e.setGeometry(QgsGeometry().fromPoint(point))
         dx = math.sin(math.radians(point.azimuth(pointB)))*(distance - 0.0000001)
         dy = math.cos(math.radians(point.azimuth(pointB)))*(distance - 0.0000001)
         e.geometry().translate(dx,dy)
         linea = QgsGeometry().fromPolyline([point,e.geometry().asPoint()])
+        #now fetch features in the vincinity
         count = 0
         req = []
         for n in index.intersects(linea.boundingBox()):
           req.append(n)
         request = QgsFeatureRequest().setFilterFids(req)
+        #check for intersections, count them
         for f in layer.getFeatures(request):  
           if f.geometry().intersects(linea):
               if self.AequalsB(f.geometry().intersection(linea).asPoint(),point) == True:
                   pass
               else:
-                  count = count + 1 
-        if count%2 == 1:
+                  if f.geometry().intersection(linea).asPoint() != QgsPoint(0,0):
+                      count = count + 1 
+        if count%2 == 1: #odd number: we are inside
             return True
-        else:
+        else: #even number. We are inside and outside again
             return False
                     
-    def AequalsB(self,a,b):#crutch because a==b and a.equals(b) and a.onSegment(b,c) are sometimes wrong?
+    def AequalsB(self,a,b):#tests if two points are roughly(0.0000001) equal
+        #crutch because a==b and a.equals(b) and a.onSegment(b,c) are sometimes wrong?
        buf = QgsGeometry().fromPoint(a).buffer(0.0000001,10)
        if buf.contains(b) == True:
          return True
        else:
          return False
      
-    def backwardsCeroline(self,segment,pointA,pointB): 
+    def backwardsCeroline(self,segment,pointA,pointB): #check if a line crosses the ceroline or the endline from "behind"
         a = pointA.azimuth(pointB)
         b = segment.asPolyline()[0].azimuth(segment.asPolyline()[1])
         diff12 = self.diffAzimuth(a,b)
@@ -604,4 +617,3 @@ class bufferLines():
             return True
         else:
           return True
-    

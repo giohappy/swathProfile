@@ -24,27 +24,16 @@ from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QFi
 from PyQt4.QtGui import QAction, QIcon, QMessageBox
 from qgis.analysis import QgsGeometryAnalyzer
 from qgis.core import * 
-# Initialize Qt resources from file resources.py
 import resources_rc
-# Import the code for the dialog
 from swath_profile_dialog import swathProfileDialog
+from bufferlines import bufferLines
 import os.path
 import os, math
 import numpy
-from bufferlines import bufferLines
 
 class swathProfile:
-    """QGIS Plugin Implementation."""
 
     def __init__(self, iface):
-        """Constructor.
-
-        :param iface: An interface instance that will be passed to this class
-            which provides the hook by which you can manipulate the QGIS
-            application at run time.
-        :type iface: QgsInterface
-        """
-        # Save reference to the QGIS interface
         self.iface = iface
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
@@ -61,32 +50,16 @@ class swathProfile:
 
             if qVersion() > '4.3.3':
                 QCoreApplication.installTranslator(self.translator)
-
         # Create the dialog (after translation) and keep reference
         self.dlg = swathProfileDialog()
-
         # Declare instance attributes
         self.actions = []
         self.menu = self.tr(u'&swath profile')
-        # TODO: We are going to let the user set this up in a future iteration
         self.toolbar = self.iface.addToolBar(u'swathProfile')
         self.toolbar.setObjectName(u'swathProfile')
 
-    # noinspection PyMethodMayBeStatic
     def tr(self, message):
-        """Get the translation for a string using Qt translation API.
-
-        We implement this ourselves since we do not inherit QObject.
-
-        :param message: String for translation.
-        :type message: str, QString
-
-        :returns: Translated version of message.
-        :rtype: QString
-        """
-        # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('swathProfile', message)
-
 
     def add_action(
         self,
@@ -99,45 +72,6 @@ class swathProfile:
         status_tip=None,
         whats_this=None,
         parent=None):
-        """Add a toolbar icon to the toolbar.
-
-        :param icon_path: Path to the icon for this action. Can be a resource
-            path (e.g. ':/plugins/foo/bar.png') or a normal file system path.
-        :type icon_path: str
-
-        :param text: Text that should be shown in menu items for this action.
-        :type text: str
-
-        :param callback: Function to be called when the action is triggered.
-        :type callback: function
-
-        :param enabled_flag: A flag indicating if the action should be enabled
-            by default. Defaults to True.
-        :type enabled_flag: bool
-
-        :param add_to_menu: Flag indicating whether the action should also
-            be added to the menu. Defaults to True.
-        :type add_to_menu: bool
-
-        :param add_to_toolbar: Flag indicating whether the action should also
-            be added to the toolbar. Defaults to True.
-        :type add_to_toolbar: bool
-
-        :param status_tip: Optional text to show in a popup when mouse pointer
-            hovers over the action.
-        :type status_tip: str
-
-        :param parent: Parent widget for the new action. Defaults None.
-        :type parent: QWidget
-
-        :param whats_this: Optional text to show in the status bar when the
-            mouse pointer hovers over the action.
-
-        :returns: The action that was created. Note that the action is also
-            added to self.actions list.
-        :rtype: QAction
-        """
-
         icon = QIcon(icon_path)
         action = QAction(icon, text, parent)
         action.triggered.connect(callback)
@@ -162,15 +96,12 @@ class swathProfile:
         return action
 
     def initGui(self):
-        """Create the menu entries and toolbar icons inside the QGIS GUI."""
-
         icon_path = ':/plugins/swathProfile/icon.png'
         self.add_action(
             icon_path,
             text=self.tr(u'swath profile'),
             callback=self.run,
             parent=self.iface.mainWindow())
-
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -183,7 +114,7 @@ class swathProfile:
         del self.toolbar
 
 
-    def run(self):# show the dialog, loop the GUI until each required parameter is checked
+    def run(self):# show the dialog, loop the GUI until each required parameter is checked #TODO infinite loop here?
         chekk = "0"
         self.dlg.inputRasterBox.clear()
         self.dlg.inputBaselineBox.clear()
@@ -197,14 +128,14 @@ class swathProfile:
             self.dlg.show()
             result = self.dlg.exec_()
             #if okay pressed, check for parameters
-            if result: #if okay is pressed
-              chekk = self.checkempties() #check parameters
+            if result: 
+              chekk = self.checkempties()
               if chekk==True:
                   self.operate()
             else:
               chekk = True #end check loop and stop running
             
-    def checkempties(self):# check if all input citeria are met
+    def checkempties(self):# check if all input criteria are met
       index = self.dlg.inputBaselineBox.currentIndex()
       self.baselinelayer= self.dlg.inputBaselineBox.itemData(index)
       index = self.dlg.inputRasterBox.currentIndex()
@@ -229,11 +160,11 @@ class swathProfile:
                     QMessageBox.information(None, "swath profile", "No raster to sample found.")
                     return False
                 else:
-                    if self.file_to_store == "":
+                    if self.file_to_store == "": #TODO infinite loop here?
                       QMessageBox.information(None, "swath profile", "No output table. Please specifiy an output table.")
                       return False
                     else:
-                        if self.linesshape == "":
+                        if self.linesshape == "": #TODO check for sanity in file name, else QGIS crashes.
                           QMessageBox.information(None, "swath profile", "No output line shape. Please specifiy an shapefile for the output swath lines.")
                           return False
                         else:
@@ -246,13 +177,12 @@ class swathProfile:
             QMessageBox.information(None, "swath profile", "No valid baseline layer found.")
             return False
       
-    def operate(self): #run
+    def operate(self): #run. First, create buffer lines, and then sample
       self.profLen = float(self.dlg.lengthProfilesBox.text())
       self.splitLen = float(self.dlg.distProfilesBox.text())
       self.res = float(self.dlg.resolutionBox.text())
       #create lines for profile. In extra file
       bufferLines().createFlatBuffer(self.baselinelayer,self.profLen,self.res,self.linesshape)
-      
       self.lineshapelayer = QgsVectorLayer(self.linesshape, "Lineshapelayer", "ogr")
       QgsMapLayerRegistry.instance().addMapLayer(self.lineshapelayer)
 
@@ -260,6 +190,7 @@ class swathProfile:
       #write header
       data = "dist, median, mean, min, max, sd, quart25,quart75, sample size\n"
       os.write(self.opened_file, data)
+      #aggregate values
       for f in self.lineshapelayer.getFeatures():
           samplelen=0
           self.datalist =[]        
@@ -295,6 +226,6 @@ class swathProfile:
         else:
             data = str(self.position)+",,,,,,,,\n"
             os.write(self.opened_file, data)
-#todo:
+#TODO:
 #reprojection before querying
 #overwrite file_to_store instead of appending
