@@ -18,9 +18,11 @@ The layers have to be in the same crs (projection).
 
 Only one line in the baseline layer is supported.
 
-GRASS raster layers seem to be using up large amount of memory in large datasets (aborted testing after 10 GB)?
+GRASS raster layers seem to be using up large amount of memory in large datasets (aborted testing after 10 GB)
+
 The buffer creation produces artifacts on complicated lines, where beginnng or end üoints intersect their own buffer.
----
+
+
 Literature:
 S.Hergarten, J. Robl, K.Stüwe (2014): Extracting topographic swath profiles across curved geomorphic features. Earth Surfaces Dynamics 2, 97-104
 
