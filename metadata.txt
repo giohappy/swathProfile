@@ -13,7 +13,7 @@ description=Create an aggregate profile normal to a baseline
 version=0.1
 author=Maximilian Krambach
 email=maximilian.krambach@gmx.de
-
+about=Generates a table with aggegates on an "averaged" swath profile along a baseline. Useful if you want a statistical profile of an entire river, or along other features. Uses the method described in Hergarten et.al. (2014) "Extracting topographic swath profiles across curved geomorphic features". Currently experimental, as the buffer creation still produces artifacts.
 # End of mandatory metadata
 
 # Recommended items:
@@ -25,7 +25,7 @@ email=maximilian.krambach@gmx.de
 tags=swath, profile
 
 homepage=http://krambach.de/swath-profile/index.html
-tracker=
+tracker=https://hub.qgis.org/projects/swathprofile
 repository=https://github.com/matakuka/swathProfile
 category=Raster
 icon=icon.png
