@@ -569,14 +569,25 @@ class bufferLines():
             pass
         return k
       
-    def getLastValid(self,k,oldfeatind,oldfeatlay,step,segment): #TODO lots of 0,0 check if intersection works at all
         #get the last valid (not too close) point of a segment
-        n = oldfeatind.nearestNeighbor(k,1)
+    def getLastValid(self,k,oldfeatind,oldfeatlay,step,segment):
+        n = oldfeatind.nearestNeighbor(k,1) 
         request = QgsFeatureRequest().setFilterFids(n)
         x = False
+        dist = segment.length()
         for f in oldfeatlay.getFeatures(request): 
           bf = f.geometry().buffer(step,10)
-          inter = segment.intersection(bf)
-          if inter.asPoint() != QgsPoint(0,0):
-              x = inter.asPoint()
+          inter = bf.intersection(segment)
+          if len(inter.asPolyline()) > 0:
+              ipt = QgsGeometry().fromPoint(inter.asPolyline()[0])
+              ipt1 = QgsGeometry().fromPoint(inter.asPolyline()[1])
+              pt0 = QgsGeometry().fromPoint(segment.asPolyline()[0])
+              if ipt1.distance(pt0) < dist:
+                  dist = ipt1.distance(pt0)
+                  x = inter.asPolyline()[1]
+              if ipt.distance(pt0) < dist:
+                  dist = ipt.distance(pt0)
+                  x = inter.asPolyline()[0]
         return x
+    
+    #TODO check for invalid geometry (duplicate point)
