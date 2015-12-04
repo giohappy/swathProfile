@@ -135,6 +135,8 @@ class swathProfile:
               chekk = self.checkempties()
               if chekk==True:
                   self.operate()
+              else:
+                  break
             else:
               chekk = True #end check loop and stop running
             
