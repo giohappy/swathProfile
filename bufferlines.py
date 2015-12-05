@@ -3,10 +3,8 @@
 /***************************************************************************
  buffer Lines
 
- This creates buffer lines for a baseline with the ends "cut off".
- 
- Main Flow: createFlatBuffer -> createLine ->  buildLine
- 
+ This creates non-intersecting buffer lines for a baseline with the ends 
+ "cut off".
                               -------------------
         begin                : 2015-06-11
         copyright            : (C) 2015 by Maximilian Krambach
@@ -33,67 +31,52 @@ class bufferLines():
 
     def createFlatBuffer(self,baselinelayer,buflength,step,filename):
         self.string = "LineString?crs=" + baselinelayer.crs().toWkt()
+        self.bstring = "Point?crs=" + baselinelayer.crs().toWkt()
         self.linelayer = QgsVectorLayer(self.string,"Buffer Layer", "memory")
         self.lineprovider= self.linelayer.dataProvider()
         self.lineprovider.addAttributes([QgsField('d', QVariant.Double)])
         self.linelayer.updateFields()
-        self.oldselflayer = QgsVectorLayer(self.string,"Temp Layer", "memory")
-        self.oldselfprovider= self.oldselflayer.dataProvider()
-        self.oldselfprovider.addAttributes([QgsField('d', QVariant.Double)])
-        self.oldselflayer.updateFields()
-        self.getSelfLayer()
-        self.selfindex = QgsSpatialIndex()
-        self.oldindex = QgsSpatialIndex()
-        currentbuffer = 0 + step
-        #2. copy the baseline
+        self.baselinelayer = QgsVectorLayer(self.string,"Baseline layer", "memory")
+        self.baselineprovider= self.baselinelayer.dataProvider()
+        self.baselinelayer.updateFields()
+        self.baselineindex = QgsSpatialIndex()
+        self.CreateErrorLayer()
+        currentbuffer = -buflength
         baselinelist = []
         linelist = []
         baselines = baselinelayer.getFeatures()
         for baseline in baselines:
             for point in baseline.geometry().asPolyline():
                 baselinelist.append(point)
-            self.constructPhantomLine(baselinelist, 0)
-            for feature in self.selflayer.getFeatures():
-                self.selfindex.insertFeature(feature)
             for i,j in list(enumerate(baselinelist[1:])):
                 linelist.append(self.drawLine(j,baselinelist[i]))
-        self.writeLine(linelist,0)
-        #3. loop through steps for each (for now being one) baseline
+            for line in linelist:
+                feature=QgsFeature()
+                feature.setGeometry(QgsGeometry().fromPolyline(line))
+                feature.setAttributes([0])
+                self.lineprovider.addFeatures([feature])
+                self.baselineprovider.addFeatures([feature])
+            for feature in self.baselinelayer.getFeatures():
+                self.baselineindex.insertFeature(feature)
         while currentbuffer <= buflength:
             baselines = baselinelayer.getFeatures()
             for baseline in baselines:
-                lineplus=self.createLine(baseline,currentbuffer)
-                lineminus=self.createLine(baseline,0-currentbuffer)
-                self.firstline = QgsGeometry().fromPolyline(
-                [lineminus[0],lineplus[0]])
-                self.endline = QgsGeometry().fromPolyline(
-                [lineminus[-1],lineplus[-1]])
-                self.putInOldIndex()
-                self.constructPhantomLine(lineplus,currentbuffer)
-                self.constructPhantomLine(lineminus,currentbuffer)
-                self.selfindex = QgsSpatialIndex()
-                for feature in self.selflayer.getFeatures():
-                    self.selfindex.insertFeature(feature)
-                self.buildLine(lineplus,currentbuffer,step)
-                self.buildLine(lineminus,0-currentbuffer,step)
+                if currentbuffer == 0:
+                    for line in linelist:
+                        feature=QgsFeature()
+                        feature.setGeometry(QgsGeometry().fromPolyline(line))
+                        feature.setAttributes([0])
+                        self.lineprovider.addFeatures([feature])
+                else:
+                    lineplus=self.createLine(baseline,currentbuffer)
+                    self.buildLine(lineplus, currentbuffer,step)
             currentbuffer = currentbuffer + step
         self.writeFile(filename,baselinelayer.crs())
         
-    def constructPhantomLine(self,pointlist,currentbuffer):
-        linelist = []
-        for i,j in list(enumerate(pointlist[1:])):
-            linelist.append(self.drawLine(j,pointlist[i]))
-        for line in linelist:
-            feature=QgsFeature()
-            feature.setGeometry(QgsGeometry().fromPolyline(line))
-            feature.setAttributes([currentbuffer])
-            self.selfprovider.addFeatures([feature])
-            
     # constructs a list of all points at buffer length
     def createLine(self,baseline,currentbuffer):
         pointid = 0
         blgeom = baseline.geometry()
-        #create list of points to be connected 
         pointlist = []
         for point in blgeom.asPolyline():
             vertex = blgeom.vertexAt(pointid)
@@ -105,20 +88,13 @@ class bufferLines():
                 azimuth = vertex.azimuth(vertex2)
                 pushedpoint = self.pushPoint(vertex,azimuth,currentbuffer)
                 pointlist.append(pushedpoint)
-                pushedpoint2 = self.pushPoint(vertex,azimuth,
-                0 - currentbuffer)
-                self.ceroline = QgsGeometry().fromPolyline([
-                pushedpoint2,vertex,pushedpoint])
-            
+                
             if vertexup == -1:
                 vertex2 = blgeom.vertexAt(vertexdown)
                 azimuth = vertex2.azimuth(vertex)
                 pushedpoint = self.pushPoint(vertex,azimuth,currentbuffer)
                 pointlist.append(pushedpoint)
-                pushedpoint2 = self.pushPoint(vertex,azimuth,0 - currentbuffer)
-                self.endline = QgsGeometry().fromPolyline([
-                pushedpoint2,vertex,pushedpoint])
-                
+                               
             if vertexup != -1 and vertexdown != -1:
                 vertex3 = blgeom.vertexAt(vertexup)
                 vertex2 = blgeom.vertexAt(vertexdown)
@@ -163,12 +139,6 @@ class bufferLines():
             pointid = pointid + 1
         return pointlist
 
-    #calculates the mean azimuth
-    def meanAzimuth(self,angle1,angle2):
-        x = math.cos(math.radians(angle1)) + math.cos(math.radians(angle2))
-        y = math.sin(math.radians(angle1)) + math.sin(math.radians(angle2))
-        return math.degrees(math.atan2(y,x))    
-    
     #pushes a point a distance
     def pushPoint(self,point,azimuth,dist):
         pushedpoint= QgsFeature()
@@ -184,20 +154,6 @@ class bufferLines():
         a = (a + 180) % 360 - 180
         return a
        
-    #puts self.indexed stuff to oldindex and clears selfindex
-    def putInOldIndex(self): 
-        self.oldindex = QgsSpatialIndex()
-        for feature in self.selflayer.getFeatures():
-            f = QgsFeature()
-            f.setGeometry(feature.geometry())
-            f.setAttributes([feature['d']])
-            self.oldselfprovider.addFeatures([f])
-        for feature in self.oldselflayer.getFeatures():#TODO switch for 2.8 and later for faster indexing
-            self.oldindex.insertFeature(feature)
-        del self.selflayer
-        self.getSelfLayer()
-        self.selfindex = QgsSpatialIndex()
-       
     #draws a line from A to B
     def drawLine(self,a,b):
         line = QgsFeature()
@@ -212,153 +168,124 @@ class bufferLines():
             linelist))
             self.lineprovider.addFeatures([linetoadd])
 
-    #wites the file 
+    #writes the file 
     def writeFile(self,filename,crs):
         QgsVectorFileWriter.writeAsVectorFormat(
         self.linelayer, filename, "utf-8", crs, "ESRI Shapefile")
     
-    #takes the point list and paints lines by 
-    #checking against spatial index crossings TODO too slow
+    #takes the point list and constructs lines 
     def buildLine(self,pointlist,currentbuffer,step):
-        linelist = []
         templine = []
+        self.CreateErrorLayer()
+        errors = self.validateLine(pointlist,currentbuffer)
+        for item in errors:
+            a = QgsFeature()
+            a.setGeometry(QgsGeometry().fromPoint(item.where()))
+            self.errorsprovider.addFeatures([a])
+        for item in self.errorslayer.getFeatures():
+            self.errorsindex.insertFeature(item)
         for i,j in list(enumerate(pointlist[1:])):
             pointb = j
             pointa = pointlist[i]
-            laststate = False
-            #first point
-            if i == 0:
-                if self.checkifInside(pointa,step) == False:
-                    templine.append(pointa)
-                    laststate = False
-            pointx = self.checkCrossings(pointa,pointb)
-            while self.AequalsB(pointx,pointb) == False:
-                if self.checkifInside(pointx,step) == False:
-                    if laststate == True:
-                        try:
-                            x = self.checkCrossings(templine[-1],pointx)
-                            if self.AequalsB(x,pointx) == False:
-                                templine = []
-                        except IndexError:
-                            pass
-                    templine.append(pointx)
-                    laststate = False
-                else: 
-                    if laststate == False:
-                        if len(templine) > 1:
-                            linelist.append(QgsGeometry().
-                            fromPolyline(templine).asPolyline())
-                        try:
-                            templine = [templine[-1]]
-                        except IndexError:
-                            templine = []
-                    laststate = True
-                pointx = self.checkCrossings(pointx,pointb)
-            if self.checkifInside(pointb,step) == False:
-                if laststate == True:
-                    try: 
-                        x = self.checkCrossings(templine[-1],pointb)
-                        if self.AequalsB(x,pointb) == False:
-                           templine = []
-                    except IndexError:
-                        pass
-                templine.append(pointb)
-                laststate = False
-            else:
-                if laststate == False:
-                    if len(templine) > 1:
-                        linelist.append(QgsGeometry().
-                        fromPolyline(templine).asPolyline())
-                    try:
-                        templine = [templine[-1]]
-                    except IndexError:
-                        templine = []
-                laststate = True
-        if laststate == False:
-            if len(templine) > 1:
-               linelist.append(QgsGeometry().fromPolyline(templine).asPolyline())
-            templine = []    
-        self.writeLine(linelist,currentbuffer)
-        
-    #checks if line intersects any existing lines TODO too slow
-    def checkCrossings(self,a,b):
-        crossing = b
-        line = QgsGeometry().fromPolyline([a,b])
-        req = []
-        intersections = []     
-        for idx in self.oldindex.intersects(line.boundingBox()):
-            req.append(idx)
-        request = QgsFeatureRequest().setFilterFids(req)
-        for segment in self.oldselflayer.getFeatures(request):
-            if segment.geometry() == None:
-               pass
-            else:
-                if segment.geometry().equals(line)== True:
+            try:
+                lastvalid = templine[-1][-1]
+                lastvalida = self.ErrorInbetween(lastvalid,pointa,errors)
+                if self.AequalsB(lastvalida,pointa) == False:
                     pass
                 else:
-                    if segment.geometry().intersects(line) == True: 
-                        intersections.append(
-                        segment.geometry().intersection(line))
-                    else:
-                        pass
-        req = []
-        for idx in self.selfindex.intersects(line.boundingBox()):
-            req.append(idx)
-        request = QgsFeatureRequest().setFilterFids(req)
-        for segment in self.selflayer.getFeatures(request):
-            if segment.geometry() == None:
-               pass
-            else:
-                if segment.geometry().equals(line)== True:
-                    pass
-                else:
-                    if segment.geometry().intersects(line) == True: 
-                        intersections.append(
-                        segment.geometry().intersection(line))
-                    else:
-                        pass
-        if self.firstline.intersects(line) == True:
-            intersections.append(self.firstline.intersection(line))
-        if self.endline.intersects(line) == True:
-            intersections.append(self.endline.intersection(line))    
-        currentdistance = line.length()
-        for inter in intersections:
-            if self.AequalsB(inter.asPoint(),a) == True:
+                    if self.checkIfLineinside(
+                    lastvalid,pointa,currentbuffer) == False:
+                        templine.append([lastvalid,pointa])
+            except IndexError:
                 pass
-            else:
-                dist = QgsGeometry().fromPoint(
-                inter.asPoint()).distance(QgsGeometry().fromPoint(a))
-                if dist < currentdistance:
-                    if dist > 0.0000001:
-                        currentdistance = dist
-                        crossing  = inter.asPoint()
-        return crossing
+            x = self.ErrorInbetween(pointa,pointb,errors)
+            if self.checkIfLineinside(pointa,x,currentbuffer) == False: #this toggles ERROR
+                    templine.append([pointa,x])
+            while self.AequalsB(x,pointb) == False:
+                x2 = x
+                x = self.ErrorInbetween(x2,pointb,errors)
+                if self.checkIfLineinside(x2,x,currentbuffer) == False:
+                    templine.append([x2,x])
         
+        self.writeLine(templine,currentbuffer)
         
-    #check if a is too close to oldfeatures
-    def checkifInside(self, a, step):
-       req = []
-       for idx in self.oldindex.nearestNeighbor(a,10):
-            req.append(idx)
-       request = QgsFeatureRequest().setFilterFids(req)
-       near = False
-       for nearline in self.oldselflayer.getFeatures(request):
-          geom = QgsGeometry().fromPoint(a)
-          if geom.distance(nearline.geometry()) < (step - step/100): 
-             near = True
-       return near
+    #get all errors. Make line longer to capture all errors
+    def validateLine(self,pointlist,currentbuffer):
+        pointlistcorrected = []
+        az = pointlist[0].azimuth(pointlist[1]) -90
+        pushedpoint = self.pushPoint(pointlist[0],az,abs(currentbuffer)*10) #TODO get some real value
+        pointlistcorrected.append(pushedpoint)
+        for item in pointlist:
+            pointlistcorrected.append(item)
+        az = pointlist[-1].azimuth(pointlist[-2]) -90
+        pushedpoint = self.pushPoint(pointlist[-1],az,abs(currentbuffer)*10) #TODO get some real value
+        pointlistcorrected.append(pushedpoint)
+        a = QgsGeometry().fromPolyline(pointlistcorrected)
+        errors = a.validateGeometry()
+        return errors
                 
-    #tests if two points are roughly(0.0000001) equal #TODO eats up time
+    #tests if two points are roughly(0.0000001) equal 
     def AequalsB(self,a,b):
-        buf = QgsGeometry().fromPoint(a).buffer(0.0000001,10)
-        if buf.contains(b) == True:
+        if QgsGeometry().fromPoint(a).distance(QgsGeometry().fromPoint(b))<0.0000001:
             return True
         else:
-            return False        
+            return False
      
-    #recreates self.selflayer 
-    def getSelfLayer(self):
-        self.selflayer = QgsVectorLayer(self.string,"Temp Layer", "memory")
-        self.selfprovider= self.selflayer.dataProvider()
-        self.selfprovider.addAttributes([QgsField('d', QVariant.Double)])
-        self.selflayer.updateFields()
+       
+    #checks if there is an item in errorlist between a and b, 
+    #returns first error or b
+    def ErrorInbetween(self, a,b, errors):
+        fin = b
+        errorlist = []
+        req = []
+        lineab = QgsGeometry().fromPolyline([a,b])
+        for idx in self.errorsindex.intersects(lineab.boundingBox()):
+            req.append(idx)
+        request = QgsFeatureRequest().setFilterFids(req)
+        for inter in self.errorslayer.getFeatures(request):
+            buf = inter.geometry().buffer(0.000001,5)
+            if buf.intersects(lineab) == False:
+                pass
+            else:
+                if self.AequalsB(inter.geometry().asPoint(),a):
+                    pass
+                else:
+                    a1 = buf.intersection(lineab).asPolyline()[0]
+                    a2 = buf.intersection(lineab).asPolyline()[1]
+                    realintersect = QgsPoint((a1.x()+a2.x())/2,(a1.y()+a2.y())/2)
+                    errorlist.append(realintersect)
+        currentdistance = lineab.length()
+        for item in errorlist:
+            if QgsGeometry().fromPoint(item).distance(
+                QgsGeometry().fromPoint(a)) < currentdistance:
+                currentdistance = QgsGeometry().fromPoint(item).distance(
+                QgsGeometry().fromPoint(a))
+                fin = item
+        return fin
+    
+    #recreates the error layer and index
+    def CreateErrorLayer(self):
+        self.errorslayer = QgsVectorLayer(self.bstring,"error layer", "memory")
+        self.errorsprovider= self.errorslayer.dataProvider()
+        self.errorsindex = QgsSpatialIndex()
+        #QgsMapLayerRegistry.instance().addMapLayer(self.errorslayer)
+        
+    #checks if a or b are inside the dist    
+    def checkIfLineinside(self, a, b, dist):
+       dist = abs(dist)
+       req = []
+       for idx in self.baselineindex.nearestNeighbor(a,5):
+            req.append(idx)
+       for idx in self.baselineindex.nearestNeighbor(b,5):
+            req.append(idx)
+       request = QgsFeatureRequest().setFilterFids(req)
+       for nearline in self.baselinelayer.getFeatures(request):
+          if QgsGeometry().fromPoint(a).distance(
+          nearline.geometry()) < (dist - dist/1000):
+              return True
+          if QgsGeometry().fromPoint(b).distance(
+          nearline.geometry()) < (dist - dist/1000):
+              return True
+       return False
+   
+   #TODO check if step and buflength add up, else center on 0
