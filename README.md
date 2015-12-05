@@ -17,16 +17,24 @@ Work flow:
 * Load a raster layer to be sampled.
 * Create a baseline shapefile, in the same CRS as the raster, draw one line.
 * Run the plugin
-* Modify output CSV to your needs (e.g. sorting)
 * plot the profile using gnuplot (see example.run) or just a table calculation program.
 
+-----
+Options explained:
+
+* Digital Terrain Model: The raster to be sampled
+* Baseline Layer: The line representing the center of the profile. Should be one Polyline (multiploylines are not supported yet)
+* take a sample every n units along the baseline: How often the lines will be sampled
+* the profile should be n map units long: The main distance from the baseline.
+* te profile should have data every n map units. How many lines there will be between the baseline and the main distance.
+* output table: Comma-separated table with output data
+* output shapefile: A shapefile epresenting the sampling lines. 
 ----
-Issues in the experimental version 0.1:
+Issues in the  version 0.1.1:
 
 * The layers have to be in the same crs (projection).
 * Only one line in the baseline layer is supported.
-* GRASS raster layers seem to be using up large amount of memory in large datasets (aborted testing after 10 GB)
-* The buffer creation produces artifacts on complicated lines, where beginnng or end points intersect their own buffer.
+* The buffer creation is quite slow
 
 ----
 Literature:

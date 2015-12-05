@@ -274,3 +274,4 @@ class swathProfile:
       
 #TODO:
 #reprojection before querying
+#replacing csv instead of only appending

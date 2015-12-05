@@ -50,23 +50,19 @@ class bufferLines():
                 baselinelist.append(point)
             for i,j in list(enumerate(baselinelist[1:])):
                 linelist.append(self.drawLine(j,baselinelist[i]))
-            for line in linelist:
-                feature=QgsFeature()
-                feature.setGeometry(QgsGeometry().fromPolyline(line))
-                feature.setAttributes([0])
-                self.lineprovider.addFeatures([feature])
-                self.baselineprovider.addFeatures([feature])
+            feature=QgsFeature()
+            feature.setGeometry(QgsGeometry().fromPolyline(baselinelist))
+            self.baselineprovider.addFeatures([feature])
             for feature in self.baselinelayer.getFeatures():
                 self.baselineindex.insertFeature(feature)
         while currentbuffer <= buflength:
             baselines = baselinelayer.getFeatures()
             for baseline in baselines:
                 if currentbuffer == 0:
-                    for line in linelist:
-                        feature=QgsFeature()
-                        feature.setGeometry(QgsGeometry().fromPolyline(line))
-                        feature.setAttributes([0])
-                        self.lineprovider.addFeatures([feature])
+                    feature=QgsFeature()
+                    feature.setGeometry(QgsGeometry().fromPolyline(baselinelist))
+                    feature.setAttributes([0])
+                    self.lineprovider.addFeatures([feature])
                 else:
                     lineplus=self.createLine(baseline,currentbuffer)
                     self.buildLine(lineplus, currentbuffer,step)
