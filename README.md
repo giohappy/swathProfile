@@ -29,6 +29,7 @@ Options explained:
 * te profile should have data every n map units. How many lines there will be between the baseline and the main distance.
 * output table: Comma-separated table with output data
 * output shapefile: A shapefile epresenting the sampling lines. 
+
 ----
 Issues in the  version 0.1.1:
 
