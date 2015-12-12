@@ -29,7 +29,7 @@ from qgis.core import *
 
 class bufferLines():
 
-    def createFlatBuffer(self,baselinelayer,buflength,step,filename):
+    def createFlatBuffer(self,baselinelayer,buflength,step):
         self.string = "LineString?crs=" + baselinelayer.crs().toWkt()
         self.bstring = "Point?crs=" + baselinelayer.crs().toWkt()
         self.linelayer = QgsVectorLayer(self.string,"Buffer Layer", "memory")
@@ -67,7 +67,7 @@ class bufferLines():
                     lineplus=self.createLine(baseline,currentbuffer)
                     self.buildLine(lineplus, currentbuffer,step)
             currentbuffer = currentbuffer + step
-        self.writeFile(filename,baselinelayer.crs())
+        return self.linelayer
         
     # constructs a list of all points at buffer length
     def createLine(self,baseline,currentbuffer):
@@ -164,11 +164,6 @@ class bufferLines():
             linelist))
             self.lineprovider.addFeatures([linetoadd])
 
-    #writes the file 
-    def writeFile(self,filename,crs):
-        QgsVectorFileWriter.writeAsVectorFormat(
-        self.linelayer, filename, "utf-8", crs, "ESRI Shapefile")
-    
     #takes the point list and constructs lines 
     def buildLine(self,pointlist,currentbuffer,step):
         templine = []

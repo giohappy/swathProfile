@@ -43,7 +43,7 @@ class swathProfileDialog(QtGui.QDialog, FORM_CLASS):
         self.button_box.rejected.connect(self.close)
         self.cmdBrowseOutput.clicked.connect(self.output_table)
         self.cmdBrowseOutputshp.clicked.connect(self.output_shape)
-        
+        self.cmdBrowseOutputpts.clicked.connect(self.output_points)
      
     def output_table(self):
        self.tablename= unicode(QtGui.QFileDialog.getSaveFileName(self, "Save File","","*.csv"))
@@ -51,10 +51,16 @@ class swathProfileDialog(QtGui.QDialog, FORM_CLASS):
        self.outputTableBox.setText(self.tablename)
        
     def output_shape(self):
-       self.dirname = unicode(QtGui.QFileDialog.getSaveFileName(self, "Output Shape","","*.shp"))
+       self.dirname = unicode(QtGui.QFileDialog.getSaveFileName(self, "Output sample lines shape","","*.shp"))
+       self.outputShapeBox.clear()
+       self.outputShapeBox.setText(self.dirname)
+    
+    def output_points(self):
+       self.dirname = unicode(QtGui.QFileDialog.getSaveFileName(self, "Output sample points shape","","*.shp"))
        self.outputShapeBox.clear()
        self.outputShapeBox.setText(self.dirname)
        
+    
     def run(self):
         pass
         return

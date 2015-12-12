@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>593</width>
-    <height>562</height>
+    <width>614</width>
+    <height>530</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>swath profile</string>
   </property>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>0</x>
@@ -23,109 +23,19 @@
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout_2">
-    <item row="0" column="0">
+    <item row="2" column="0">
+     <widget class="QDialogButtonBox" name="button_box">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+      <property name="standardButtons">
+       <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="0">
      <layout class="QGridLayout" name="gridLayout">
-      <item row="3" column="0">
-       <widget class="QLabel" name="label">
-        <property name="text">
-         <string>Baseline Layer</string>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="0">
-       <widget class="QLabel" name="label_5">
-        <property name="text">
-         <string>The profile should have data every </string>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="2">
-       <widget class="QPushButton" name="cmdBrowseOutput">
-        <property name="locale">
-         <locale language="English" country="UnitedStates"/>
-        </property>
-        <property name="text">
-         <string>Browse</string>
-        </property>
-       </widget>
-      </item>
-      <item row="10" column="1">
-       <widget class="QLineEdit" name="outputShapeBox"/>
-      </item>
-      <item row="6" column="0">
-       <widget class="QLabel" name="label_4">
-        <property name="text">
-         <string>the profile should be </string>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="0">
-       <widget class="QLabel" name="label_6">
-        <property name="toolTip">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The directory where the output is stored.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-        </property>
-        <property name="locale">
-         <locale language="English" country="UnitedStates"/>
-        </property>
-        <property name="text">
-         <string>Output table</string>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="1">
-       <widget class="QLineEdit" name="outputTableBox">
-        <property name="toolTip">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The directory where the output is stored.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-        </property>
-       </widget>
-      </item>
-      <item row="10" column="0">
-       <widget class="QLabel" name="label_7">
-        <property name="text">
-         <string>output profile lines shape</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1" colspan="2">
-       <widget class="QComboBox" name="inputBaselineBox"/>
-      </item>
-      <item row="2" column="1" colspan="2">
-       <widget class="QComboBox" name="inputRasterBox"/>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_3">
-        <property name="locale">
-         <locale language="English" country="UnitedStates"/>
-        </property>
-        <property name="text">
-         <string>Digital Terrain Model (raster)</string>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="10" column="2">
-       <widget class="QPushButton" name="cmdBrowseOutputshp">
-        <property name="locale">
-         <locale language="English" country="UnitedStates"/>
-        </property>
-        <property name="text">
-         <string>Browse</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="label_2">
-        <property name="text">
-         <string>Take a sample every</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
+      <item row="4" column="2">
        <widget class="QDoubleSpinBox" name="distProfilesBox">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -141,14 +51,34 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="2">
-       <widget class="QLabel" name="label_8">
-        <property name="text">
-         <string>map units along the baseline</string>
+      <item row="9" column="2">
+       <widget class="QLineEdit" name="outputTableBox">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The directory where the output is stored.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="11" column="3">
+       <widget class="QPushButton" name="cmdBrowseOutputshp">
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
+        <property name="text">
+         <string>Browse</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string>The profile should have data every </string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="2" colspan="2">
+       <widget class="QComboBox" name="inputBaselineBox"/>
+      </item>
+      <item row="6" column="2">
        <widget class="QDoubleSpinBox" name="lengthProfilesBox">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -164,7 +94,20 @@
         </property>
        </widget>
       </item>
-      <item row="7" column="1">
+      <item row="11" column="2">
+       <widget class="QLineEdit" name="outputShapeBox"/>
+      </item>
+      <item row="7" column="3">
+       <widget class="QLabel" name="label_10">
+        <property name="text">
+         <string>map units</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2" colspan="2">
+       <widget class="QComboBox" name="inputRasterBox"/>
+      </item>
+      <item row="7" column="2">
        <widget class="QDoubleSpinBox" name="resolutionBox">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -183,14 +126,17 @@
         </property>
        </widget>
       </item>
-      <item row="7" column="2">
-       <widget class="QLabel" name="label_10">
+      <item row="9" column="3">
+       <widget class="QPushButton" name="cmdBrowseOutput">
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
         <property name="text">
-         <string>map units</string>
+         <string>Browse</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="2">
+      <item row="6" column="3">
        <widget class="QLabel" name="label_9">
         <property name="text">
          <string>map units long (in either direction from the baseline)</string>
@@ -200,17 +146,94 @@
         </property>
        </widget>
       </item>
+      <item row="4" column="3">
+       <widget class="QLabel" name="label_8">
+        <property name="text">
+         <string>map units along the baseline</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="label_3">
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
+        <property name="text">
+         <string>Digital Terrain Model (raster)</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1">
+       <widget class="QLabel" name="label_6">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The directory where the output is stored.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
+        <property name="text">
+         <string>Output table</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string>the profile should be </string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Baseline Layer</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>Take a sample every</string>
+        </property>
+       </widget>
+      </item>
+      <item row="12" column="3">
+       <widget class="QPushButton" name="cmdBrowseOutputpts">
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
+        <property name="text">
+         <string>Browse</string>
+        </property>
+       </widget>
+      </item>
+      <item row="12" column="2">
+       <widget class="QLineEdit" name="outputPointBox"/>
+      </item>
+      <item row="11" column="1">
+       <widget class="QCheckBox" name="checkBoxLines">
+        <property name="text">
+         <string>output profile lines position</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="12" column="1">
+       <widget class="QCheckBox" name="checkBoxPts">
+        <property name="text">
+         <string>output sample point positions</string>
+        </property>
+       </widget>
+      </item>
      </layout>
-    </item>
-    <item row="1" column="0">
-     <widget class="QDialogButtonBox" name="button_box">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-      <property name="standardButtons">
-       <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-      </property>
-     </widget>
     </item>
    </layout>
   </widget>
@@ -218,10 +241,17 @@
  <tabstops>
   <tabstop>inputRasterBox</tabstop>
   <tabstop>inputBaselineBox</tabstop>
+  <tabstop>distProfilesBox</tabstop>
+  <tabstop>lengthProfilesBox</tabstop>
+  <tabstop>resolutionBox</tabstop>
   <tabstop>outputTableBox</tabstop>
-  <tabstop>outputShapeBox</tabstop>
   <tabstop>cmdBrowseOutput</tabstop>
+  <tabstop>checkBoxLines</tabstop>
+  <tabstop>outputShapeBox</tabstop>
   <tabstop>cmdBrowseOutputshp</tabstop>
+  <tabstop>checkBoxPts</tabstop>
+  <tabstop>outputPointBox</tabstop>
+  <tabstop>cmdBrowseOutputpts</tabstop>
   <tabstop>button_box</tabstop>
  </tabstops>
  <resources/>
