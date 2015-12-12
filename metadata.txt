@@ -2,12 +2,12 @@
 name=swath profile
 qgisMinimumVersion=2.2
 description=Creates an aggregate profile along a baseline 
-version=0.1.1
+version=0.2
 author=Maximilian Krambach
 email=maximilian.krambach@gmx.de
 about=Generates a table with aggegates on an "averaged" swath profile along a baseline. Useful if you want a statistical profile of an entire river, or along other features. Uses the method described in Hergarten et.al. (2014) "Extracting topographic swath profiles across curved geomorphic features".
 
-#changelog=
+changelog= more output options
 
 tags=profile, statistics
 

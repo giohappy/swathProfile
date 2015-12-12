@@ -12,7 +12,7 @@ The plugin is in an early phase, as the buffer creation still needs improvement.
 
 Work flow: 
 * Load raster to be sampled into QGIS.
-* Create a shapefile with a baseline in it. Currently needs to be in the same projection as the raster, and only one simple polyline is supported (no multi-part lines)
+* Create a shapefile with a baseline in it. Currently only one simple polyline is supported (no multi-part lines)
 * Run the plugin
 * Plot the csv file
 
@@ -23,7 +23,8 @@ Options explained:
 * the profile should be n map units long: The main distance from the baseline.
 * te profile should have data every n map units. How many lines there will be between the baseline and the main distance.
 * output table: Comma-separated table with output data
-* output shapefile: A shapefile epresenting the sampling lines. 
+* output lines shapefile: A shapefile representing the sampling lines. 
+* output points shapefile: A shapefile representing the sites sampled.
 
 ---
 Literature:
