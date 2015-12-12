@@ -136,7 +136,7 @@ class swathProfile:
               if chekk==True:
                   self.operate()
               else:
-                  break
+                break
             else:
               chekk = True #end check loop and stop running
             
@@ -147,7 +147,6 @@ class swathProfile:
       self.raster= self.dlg.inputRasterBox.itemData(index)
       self.file_to_store = self.dlg.outputTableBox.text()
       self.linesshape = self.dlg.outputShapeBox.text()
-      
       if self.baselinelayer == None:
           QMessageBox.information(None, "swath profile",
           "No baseline layer detected")
@@ -216,8 +215,18 @@ class swathProfile:
       self.profLen = float(self.dlg.lengthProfilesBox.text())
       self.splitLen = float(self.dlg.distProfilesBox.text())
       self.res = float(self.dlg.resolutionBox.text())
+      self.baselinetemplayer = QgsVectorLayer("Linestring?crs=0", 
+      "baselinelayer","memory")
+      self.baselinetemplayer.setCrs(self.baselinelayer.crs())
+      if self.baselinetemplayer.crs() != self.raster.crs():
+        self.reProjectTempFile()
+      else:
+        for feature in self.baselinelayer.getFeatures():
+          self.baselinetemplayer.dataProvider().addFeatures([feature])
+      
+      
       #create lines for profile. In extra file
-      bufferLines().createFlatBuffer(self.baselinelayer,
+      bufferLines().createFlatBuffer(self.baselinetemplayer,
                 self.profLen,self.res,self.linesshape)
       self.lineshapelayer = QgsVectorLayer(
       self.linesshape, "Lineshapelayer", "ogr")
@@ -269,9 +278,24 @@ class swathProfile:
             value = value.replace(c,'')
         return value;
        
-           
-           
-      
-#TODO:
-#reprojection before querying
-#replacing csv instead of only appending
+    def reProjectTempFile(self):
+        message= self.tr(
+        "The Baseline doesn't match the projection of the raster layer. Should I try to reproject to the raster's projection (temporary file)?")
+        k = QMessageBox .question(None, "SwathProfile", message, 
+        QMessageBox.Yes, QMessageBox.No)
+        if k == QMessageBox.Yes:
+            self.baselinetemplayer.setCrs(self.raster.crs())
+            transf = QgsCoordinateTransform(self.baselinelayer.crs(),self.raster.crs())
+            for line in self.baselinelayer.getFeatures():
+              reprojectedline = QgsFeature()
+              pointlist = []
+              for point in line.geometry().asPolyline():
+                reprojectedpoint = transf.transform(point)
+                pointlist.append(reprojectedpoint)
+              reprojectedline.setGeometry(QgsGeometry().fromPolyline(pointlist))
+              self.baselinetemplayer.dataProvider().addFeatures([reprojectedline])
+        else: #don't reproject
+            for feature in self.baselinelayer.getFeatures():
+                self.baselinetemplayer.dataProvider().addFeatures([feature])
+
+#TODO: replacing csv instead of appending
